@@ -1,0 +1,285 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+
+import { CorrectionForm, EVENT_LABEL, EventForm, NewFinancingForm } from '../components/FinancingForms'
+import { OutlookView } from '../components/OutlookView'
+import { ScheduleView } from '../components/ScheduleView'
+import { primary, input } from '../components/ui'
+import { euro } from '../format'
+import { financingApi, type Financing, type FinancingDetail, type FinancingEvent } from '../financingApi'
+import { monthLabel } from '../monthUtils'
+
+const KIND_LABEL: Record<string, string> = {
+  real_estate: 'Immobilienfinanzierung',
+  consumer: 'Kredit',
+  other: 'Kredit',
+  building_savings: 'Bausparvertrag',
+}
+
+const PHASE_LABEL: Record<Financing['phase'], string> = {
+  not_started: 'Noch nicht gestartet',
+  saving: 'Sparphase',
+  loan: 'Läuft',
+  finished: 'Abbezahlt',
+}
+
+function eventValue(e: FinancingEvent): string {
+  return e.kind === 'rate_change' ? `${String(e.value).replace('.', ',')} % pro Jahr` : euro(e.value, true)
+}
+
+function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="zahl text-2xl font-semibold">{value}</div>
+      <div className="text-sm text-tinte-weich">{label}</div>
+    </div>
+  )
+}
+
+function Outlook() {
+  const [years, setYears] = useState(30)
+  const [income, setIncome] = useState(0)
+  const [expense, setExpense] = useState(0)
+  const query = useQuery({
+    queryKey: ['financings', 'outlook', years, income, expense],
+    queryFn: () => financingApi.outlook(years, income, expense),
+  })
+  const data = query.data
+  const first = data?.points[0]
+  const last = data?.points.at(-1)
+
+  const commit = (set: (n: number) => void) => (e: { currentTarget: HTMLInputElement }) => {
+    const n = Number(e.currentTarget.value.replace(',', '.'))
+    if (Number.isFinite(n) && n >= -10 && n <= 20) set(n)
+  }
+
+  return (
+    <section aria-labelledby="ausblick">
+      <h2 id="ausblick" className="mb-2 text-xl">
+        Wie sich dein Budget entwickelt
+      </h2>
+      {first && last && (
+        <p className="mb-4 max-w-2xl text-tinte-weich">
+          Heute bleiben dir <strong className="zahl text-tinte">{euro(first.free)}</strong> im Monat. In {data.years} Jahren
+          sind es <strong className="zahl text-tinte">{euro(last.free)}</strong>, wenn Verträge wie geplant enden.
+        </p>
+      )}
+      <div className="mb-4 flex flex-wrap gap-6 text-sm">
+        <label>
+          Zeitraum
+          <select value={years} onChange={(e) => setYears(Number(e.target.value))} className={`${input} !mt-1 w-auto`}>
+            {[10, 20, 30, 40].map((y) => (
+              <option key={y} value={y}>
+                {y} Jahre
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Einnahmen wachsen pro Jahr um (%)
+          <input
+            defaultValue={String(income).replace('.', ',')}
+            onBlur={commit(setIncome)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            inputMode="decimal"
+            className={`${input} !mt-1 w-28`}
+          />
+        </label>
+        <label>
+          Ausgaben wachsen pro Jahr um (%)
+          <input
+            defaultValue={String(expense).replace('.', ',')}
+            onBlur={commit(setExpense)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            inputMode="decimal"
+            className={`${input} !mt-1 w-28`}
+          />
+        </label>
+      </div>
+      {data && <OutlookView data={data} />}
+      {data && data.events.length > 0 && (
+        <ul className="mt-4 divide-y divide-tinte/15 text-sm">
+          {data.events.map((e, i) => (
+            <li key={`${e.month}-${e.label}-${i}`} className="flex flex-wrap items-baseline gap-x-4 py-2">
+              <span className="w-24 text-tinte-weich">{monthLabel(e.month)}</span>
+              <span>{e.label}</span>
+              <span className={`zahl ml-auto font-medium ${e.monthly_change < 0 ? 'text-bake' : 'text-elbe-dunkel'}`}>
+                {e.monthly_change > 0 ? '+' : ''}
+                {euro(e.monthly_change)} pro Monat
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {data && data.events.length === 0 && (
+        <p className="mt-4 text-sm text-tinte-weich">
+          Im gewählten Zeitraum endet keine Finanzierung und kein Posten. Trage Kredite und Bausparverträge ein, dann siehst du,
+          wann Budget frei wird.
+        </p>
+      )}
+      <p className="mt-3 max-w-2xl text-sm text-tinte-weich">
+        Grundlage sind deine geplanten Posten und Finanzierungen. Ohne Wachstumsannahme bleiben Einnahmen und Ausgaben auf dem
+        heutigen Stand, Inflation ist nicht eingerechnet.
+      </p>
+    </section>
+  )
+}
+
+function Detail({ financing }: { financing: Financing }) {
+  const qc = useQueryClient()
+  const [correcting, setCorrecting] = useState(false)
+  const query = useQuery({
+    queryKey: ['financings', 'detail', financing.id],
+    queryFn: () => financingApi.get(financing.id),
+  })
+  const remove = useMutation({
+    mutationFn: (eventId: number) => financingApi.removeEvent(financing.id, eventId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['financings'] })
+      await qc.invalidateQueries({ queryKey: ['cashflow'] })
+    },
+  })
+  const d: FinancingDetail | undefined = query.data
+  if (!d) return null
+
+  return (
+    <div className="mt-4 space-y-8 border-l-4 border-tinte/20 pl-4 sm:pl-6">
+      <div className="flex flex-wrap gap-x-10 gap-y-4">
+        {d.remaining_debt !== null && <Figure label="Restschuld" value={euro(d.remaining_debt)} />}
+        {d.saved !== null && <Figure label="Angespart" value={euro(d.saved)} />}
+        <Figure label="Rate pro Monat" value={euro(d.regular_payment, true)} />
+        <Figure label="Zinsen bis zum Ende" value={euro(d.remaining_interest)} />
+        <Figure label="Letzter Monat mit Zahlung" value={monthLabel(d.schedule.at(-1)!.month)} />
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-base">Verlauf</h3>
+        <ScheduleView rows={d.schedule} />
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-base">Ereignisse</h3>
+        {d.events.length === 0 ? (
+          <p className="mb-4 max-w-xl text-sm text-tinte-weich">
+            Noch keine. Plane hier eine Sondertilgung, eine neue Rate oder einen neuen Zins nach Ende der Zinsbindung ein. Die
+            Vergangenheit bleibt dabei unverändert.
+          </p>
+        ) : (
+          <ul className="mb-4 divide-y divide-tinte/15 text-sm">
+            {d.events.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-baseline gap-x-4 py-2">
+                <span className="w-24 text-tinte-weich">{monthLabel(e.month)}</span>
+                <span>{EVENT_LABEL[e.kind]}</span>
+                <span className="zahl ml-auto">{eventValue(e)}</span>
+                {e.locked ? (
+                  <span className="w-20 text-right text-tinte-weich">abgeschlossen</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => remove.mutate(e.id)}
+                    className="w-20 text-right font-medium text-elbe-dunkel hover:underline"
+                  >
+                    Entfernen
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {remove.error && (
+          <p role="alert" className="mb-3 text-sm font-medium text-bake">
+            {remove.error.message}
+          </p>
+        )}
+        <EventForm detail={d} />
+      </div>
+
+      <div>
+        {correcting ? (
+          <CorrectionForm detail={d} onDone={() => setCorrecting(false)} />
+        ) : (
+          <button type="button" onClick={() => setCorrecting(true)} className="text-sm font-medium text-elbe-dunkel hover:underline">
+            Vertragsdaten korrigieren
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function FinancingsPage() {
+  const list = useQuery({ queryKey: ['financings', 'list'], queryFn: financingApi.list })
+  const [adding, setAdding] = useState(false)
+  const [open, setOpen] = useState<number | null>(null)
+
+  return (
+    <div className="space-y-12">
+      <h1 className="sr-only">Finanzierungen</h1>
+      <Outlook />
+
+      <section aria-labelledby="vertraege">
+        <div className="mb-2 flex items-baseline gap-4">
+          <h2 id="vertraege" className="text-xl">
+            Kredite und Bausparverträge
+          </h2>
+          {!adding && (
+            <button type="button" onClick={() => setAdding(true)} className={`ml-auto text-sm ${primary}`}>
+              Finanzierung hinzufügen
+            </button>
+          )}
+        </div>
+
+        {adding && (
+          <div className="mb-8">
+            <NewFinancingForm
+              onDone={(created) => {
+                setAdding(false)
+                setOpen(created.id)
+              }}
+            />
+            <button type="button" onClick={() => setAdding(false)} className="mt-2 text-sm font-medium text-elbe-dunkel hover:underline">
+              Abbrechen
+            </button>
+          </div>
+        )}
+
+        {list.data?.length === 0 && !adding && (
+          <p className="max-w-xl text-tinte-weich">
+            Noch keine Finanzierung erfasst. Füge deine Immobilienfinanzierung, Kredite oder Bausparverträge hinzu. Sie fließen in
+            Cashflow und Budget-Prognose ein.
+          </p>
+        )}
+
+        <ul className="divide-y divide-tinte/15">
+          {list.data?.map((f) => (
+            <li key={f.id} className="py-4">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="font-medium">{f.name}</span>
+                <span className="text-sm text-tinte-weich">
+                  {KIND_LABEL[f.kind === 'building_savings' ? 'building_savings' : (f.purpose ?? 'other')]} · {PHASE_LABEL[f.phase]}
+                </span>
+                <span className="zahl ml-auto">
+                  {euro(f.payment_this_month, true)}
+                  <span className="text-sm text-tinte-weich"> diesen Monat</span>
+                </span>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-elbe-dunkel hover:underline"
+                  onClick={() => setOpen(open === f.id ? null : f.id)}
+                >
+                  {open === f.id ? 'Schließen' : 'Details'}
+                </button>
+              </div>
+              <div className="text-sm text-tinte-weich">
+                {f.remaining_debt !== null && <>Restschuld {euro(f.remaining_debt)} · </>}
+                {f.saved !== null && f.phase === 'saving' && <>Angespart {euro(f.saved)} · </>}
+                {f.phase === 'finished' ? 'abbezahlt' : `ohne Zahlung ab ${monthLabel(f.end_month)}`}
+              </div>
+              {open === f.id && <Detail financing={f} />}
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  )
+}

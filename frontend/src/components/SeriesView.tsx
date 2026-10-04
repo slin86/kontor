@@ -32,7 +32,8 @@ export function SeriesView({ data }: { data: SeriesPoint[] }) {
       },
       series: [
         { name: 'Einnahmen', type: 'bar', data: data.map((p) => p.income), itemStyle: { color: '#2e7c86' }, barGap: '10%' },
-        { name: 'Ausgaben', type: 'bar', data: data.map((p) => p.expenses), itemStyle: { color: '#b9a572' } },
+        { name: 'Ausgaben', type: 'bar', stack: 'out', data: data.map((p) => p.expenses), itemStyle: { color: '#b9a572' } },
+        { name: 'Finanzierungen', type: 'bar', stack: 'out', data: data.map((p) => p.financing), itemStyle: { color: '#6d8aa0' } },
         {
           name: 'Übrig',
           type: 'line',
@@ -45,5 +46,5 @@ export function SeriesView({ data }: { data: SeriesPoint[] }) {
     }),
     [data],
   )
-  return <EChart option={option} height={300} label="Einnahmen, Ausgaben und Überschuss je Monat" />
+  return <EChart option={option} height={300} label="Einnahmen, Ausgaben, Finanzierungen und Überschuss je Monat" />
 }

@@ -11,7 +11,7 @@ Self-hosted, built for a homelab.
 |-------|-------|-------|
 | 1 | Backend skeleton, accounts (households with several members), Docker, CI | this branch |
 | 2 | Cashflow: income/expenses (monthly, quarterly, yearly), timeline, Sankey and charts | this branch |
-| 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | planned |
+| 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | this branch |
 | 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | planned |
 | 5 | Instrument search (ETF / private equity), costs, comparison, CSV import | planned |
 | 6 | Plan vs. actual, polish | planned |
@@ -46,6 +46,23 @@ Self-hosted, built for a homelab.
   surplus or shortfall), month series (also used for the outlook when items end) and expense shares.
 
 Not covered yet: correcting the *dates* of a version, deleting items, renaming/deleting categories in the UI.
+
+## Financings and budget outlook
+
+- **Loan** (real estate, car, consumer, ...): amount, annual rate, first month and either a fixed monthly
+  payment or an initial repayment percentage (payment = amount x (rate + repayment) / 12). Interest accrues
+  monthly on the remaining balance (annuity loan).
+- **Bausparvertrag**: saving phase (monthly contribution, interest credited each December, one-off
+  Abschlussgebuehr), allocation month, then a loan phase with its own rate and payment.
+- **Events** from the current month on: special repayment, payment change, rate change. Past events are
+  locked (409); contract data can be corrected with a reason and is audited.
+- The cashflow summary, Sankey (financings -> contract -> interest / principal / saving / fees) and series
+  include the financings automatically.
+- **Outlook** (`GET /api/outlook`): the free monthly budget (income - expenses - financings) for up to 50
+  years, with events for ending financings and items and optional yearly income/expense growth. One-off
+  special repayments are left out so the curve shows the regular budget.
+
+Not covered yet: deleting a financing, scenarios with several interest paths.
 
 ## Frontend
 
@@ -102,6 +119,11 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `GET /api/cashflow/summary` / `sankey` | Aggregates for one month |
 | `GET /api/cashflow/series?from=&to=` | Income, expenses and balance per month |
 | `GET /api/audit` | Audit log |
+| `GET/POST /api/financings` | List / create loans and Bauspar contracts |
+| `GET /api/financings/{id}` | Contract data, schedule and events |
+| `POST /api/financings/{id}/correct` | Correct contract data (reason required) |
+| `POST /api/financings/{id}/events`, `DELETE .../events/{event_id}` | Add / remove a dated event |
+| `GET /api/outlook?start=&years=&income_growth=&expense_growth=` | Budget outlook |
 
 ## Deployment (homelab)
 

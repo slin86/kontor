@@ -64,7 +64,7 @@ def outlook(
             )
             for a in _active_items(items, m)
         ]
-        s = dom.summarize(infos, scaled, book.flows_at(m))
+        s = dom.summarize(infos, scaled, book.flows_at(m, regular_only=True))
         points.append(
             OutlookPoint(
                 month=m,

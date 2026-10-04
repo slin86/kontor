@@ -320,3 +320,24 @@ def test_outlook_validates_parameters(client: TestClient) -> None:
     _login(client)
     assert client.get("/api/outlook", params={"years": 0}).status_code == 422
     assert client.get("/api/outlook", params={"income_growth": 50}).status_code == 422
+
+
+def test_outlook_ignores_one_off_special_repayments(client: TestClient) -> None:
+    _login(client)
+    _income(client, "4000")
+    f = _create(client, LOAN)
+    base = f"/api/financings/{f['id']}/events"
+    client.post(base, json={"month": "2027-10", "kind": "special_repayment", "value": "10000"})
+
+    outlook = {
+        p["month"]: p for p in client.get("/api/outlook", params={"years": 3}).json()["points"]
+    }
+    series = {
+        p["month"]: p
+        for p in client.get(
+            "/api/cashflow/series", params={"from": "2027-09", "to": "2027-11"}
+        ).json()
+    }
+    # the actual month carries the special repayment, the outlook stays on the regular budget
+    assert series["2027-10"]["financing"] > outlook["2027-10"]["financing"] + 9000
+    assert outlook["2027-10"]["financing"] == pytest.approx(outlook["2027-09"]["financing"], abs=50)

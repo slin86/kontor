@@ -109,13 +109,21 @@ class FinancingBook:
 
     items: list[tuple[Financing, Schedule]]
 
-    def flows_at(self, month: date) -> list[FinancingFlow]:
+    def flows_at(self, month: date, *, regular_only: bool = False) -> list[FinancingFlow]:
+        """Flows in a month; ``regular_only`` leaves out one-off special repayments."""
         out: list[FinancingFlow] = []
         for f, schedule in self.items:
             row = schedule.at(month)
             if row is not None:
                 out.append(
-                    FinancingFlow(f.id, f.name, row.interest, row.principal, row.saving, row.fee)
+                    FinancingFlow(
+                        f.id,
+                        f.name,
+                        row.interest,
+                        row.principal - (row.special if regular_only else 0),
+                        row.saving,
+                        row.fee,
+                    )
                 )
         return out
 

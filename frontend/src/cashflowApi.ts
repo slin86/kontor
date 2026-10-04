@@ -38,10 +38,22 @@ export interface Group {
   children: Group[]
 }
 
+export interface FinancingFlow {
+  financing_id: number
+  name: string
+  interest: number
+  principal: number
+  saving: number
+  fee: number
+  total: number
+}
+
 export interface Summary {
   month: string
   income: number
-  expenses: number
+  expenses: number // running costs without financings
+  financing: number
+  financing_flows: FinancingFlow[]
   balance: number
   savings_rate: number | null
   income_groups: Group[]
@@ -50,7 +62,11 @@ export interface Summary {
 
 export interface Sankey {
   month: string
-  nodes: { id: string; name: string; kind: 'income' | 'hub' | 'expense' | 'surplus' | 'deficit' }[]
+  nodes: {
+    id: string
+    name: string
+    kind: 'income' | 'hub' | 'expense' | 'financing' | 'purpose' | 'surplus' | 'deficit'
+  }[]
   links: { source: string; target: string; value: number }[]
 }
 
@@ -58,6 +74,7 @@ export interface SeriesPoint {
   month: string
   income: number
   expenses: number
+  financing: number
   balance: number
 }
 
