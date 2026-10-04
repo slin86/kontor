@@ -126,6 +126,22 @@ class ActiveItem:
 
 
 @dataclass(frozen=True)
+class FinancingFlow:
+    """What one financing costs in a month, split by purpose (all values >= 0)."""
+
+    financing_id: int
+    name: str
+    interest: Decimal = Decimal(0)
+    principal: Decimal = Decimal(0)
+    saving: Decimal = Decimal(0)
+    fee: Decimal = Decimal(0)
+
+    @property
+    def total(self) -> Decimal:
+        return self.interest + self.principal + self.saving + self.fee
+
+
+@dataclass(frozen=True)
 class GroupSummary:
     category_id: int
     name: str
@@ -137,14 +153,20 @@ class GroupSummary:
 @dataclass(frozen=True)
 class Summary:
     income: Decimal
-    expenses: Decimal
-    balance: Decimal
+    expenses: Decimal  # running costs from cashflow items, without financings
+    financing: Decimal  # everything paid for financings (interest, repayment, saving, fees)
+    balance: Decimal  # income - expenses - financing
     savings_rate: Decimal | None  # balance / income, ``None`` without income
     income_groups: list[GroupSummary]
     expense_groups: list[GroupSummary]
+    financing_flows: list[FinancingFlow]
 
 
-def summarize(categories: list[CategoryInfo], items: list[ActiveItem]) -> Summary:
+def summarize(
+    categories: list[CategoryInfo],
+    items: list[ActiveItem],
+    financings: list[FinancingFlow] | None = None,
+) -> Summary:
     cats = {c.id: c for c in categories}
     totals: dict[int, Decimal] = defaultdict(Decimal)
     for it in items:
@@ -165,11 +187,24 @@ def summarize(categories: list[CategoryInfo], items: list[ActiveItem]) -> Summar
     income_groups = sorted((g for g in groups if g.kind == "income"), key=lambda g: -g.total)
     expense_groups = sorted((g for g in groups if g.kind == "expense"), key=lambda g: -g.total)
 
+    flows = [
+        FinancingFlow(
+            f.financing_id,
+            f.name,
+            cents(f.interest),
+            cents(f.principal),
+            cents(f.saving),
+            cents(f.fee),
+        )
+        for f in (financings or [])
+        if f.total != 0
+    ]
     income = sum((g.total for g in income_groups), Decimal())
     expenses = sum((g.total for g in expense_groups), Decimal())
-    balance = income - expenses
+    financing = sum((f.total for f in flows), Decimal())
+    balance = income - expenses - financing
     rate = (balance / income).quantize(Decimal("0.0001")) if income else None
-    return Summary(income, expenses, balance, rate, income_groups, expense_groups)
+    return Summary(income, expenses, financing, balance, rate, income_groups, expense_groups, flows)
 
 
 # --------------------------------------------------------------------------------------
@@ -181,7 +216,7 @@ def summarize(categories: list[CategoryInfo], items: list[ActiveItem]) -> Summar
 class SankeyNode:
     id: str
     name: str
-    kind: str  # income | hub | expense | surplus | deficit
+    kind: str  # income | hub | expense | financing | purpose | surplus | deficit
 
 
 @dataclass(frozen=True)
@@ -200,9 +235,13 @@ class Sankey:
 HUB_ID = "hub"
 
 
-def build_sankey(categories: list[CategoryInfo], items: list[ActiveItem]) -> Sankey:
+def build_sankey(
+    categories: list[CategoryInfo],
+    items: list[ActiveItem],
+    financings: list[FinancingFlow] | None = None,
+) -> Sankey:
     """Income sources -> household -> expense groups -> sub-categories, plus surplus/deficit."""
-    summary = summarize(categories, items)
+    summary = summarize(categories, items, financings)
     nodes: list[SankeyNode] = [SankeyNode(HUB_ID, "Haushalt", "hub")]
     links: list[SankeyLink] = []
 
@@ -219,6 +258,29 @@ def build_sankey(categories: list[CategoryInfo], items: list[ActiveItem]) -> San
             cid = f"expense:{child.category_id}"
             nodes.append(SankeyNode(cid, child.name, "expense"))
             links.append(SankeyLink(nid, cid, child.total))
+
+    if summary.financing_flows:
+        nodes.append(SankeyNode("financing", "Finanzierungen", "financing"))
+        links.append(SankeyLink(HUB_ID, "financing", summary.financing))
+        purposes = {
+            "interest": "Zinsen",
+            "principal": "Tilgung",
+            "saving": "Bausparen",
+            "fee": "Gebühren",
+        }
+        used: dict[str, Decimal] = {}
+        for f in summary.financing_flows:
+            fid = f"financing:{f.financing_id}"
+            nodes.append(SankeyNode(fid, f.name, "financing"))
+            links.append(SankeyLink("financing", fid, f.total))
+            for key in purposes:
+                value = getattr(f, key)
+                if value > 0:
+                    links.append(SankeyLink(fid, f"purpose:{key}", value))
+                    used[key] = used.get(key, Decimal(0)) + value
+        for key, label in purposes.items():
+            if key in used:
+                nodes.append(SankeyNode(f"purpose:{key}", label, "purpose"))
 
     if summary.balance > 0:
         nodes.append(SankeyNode("surplus", "Übrig", "surplus"))

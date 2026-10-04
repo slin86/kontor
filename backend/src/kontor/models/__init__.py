@@ -9,6 +9,7 @@ from kontor.models.cashflow import (
     CategoryKind,
     Frequency,
 )
+from kontor.models.financing import Financing, FinancingEvent, FinancingKind
 
 __all__ = [
     "AuditLog",
@@ -17,6 +18,9 @@ __all__ = [
     "CashflowVersion",
     "Category",
     "CategoryKind",
+    "Financing",
+    "FinancingEvent",
+    "FinancingKind",
     "Frequency",
     "Household",
     "User",

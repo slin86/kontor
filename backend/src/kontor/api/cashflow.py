@@ -22,6 +22,7 @@ from kontor.schemas.cashflow import (
     AuditOut,
     CategoryIn,
     CategoryOut,
+    FinancingFlowOut,
     GroupOut,
     ItemChange,
     ItemCreate,
@@ -36,6 +37,8 @@ from kontor.schemas.cashflow import (
     VersionCorrection,
     VersionOut,
 )
+from kontor.services.audit import record as audit_record
+from kontor.services.financing_book import load_book, load_financings
 
 router = APIRouter(prefix="/api", tags=["cashflow"])
 
@@ -62,29 +65,7 @@ MonthParam = Annotated[str | None, Query(alias="month", pattern=r"^\d{4}-(0[1-9]
 # --------------------------------------------------------------------------------------
 
 
-def _audit(
-    db: Session,
-    user: User,
-    action: str,
-    entity: str,
-    entity_id: int,
-    *,
-    reason: str | None = None,
-    before: dict[str, Any] | None = None,
-    after: dict[str, Any] | None = None,
-) -> None:
-    db.add(
-        AuditLog(
-            household_id=user.household_id,
-            user_id=user.id,
-            action=action,
-            entity=entity,
-            entity_id=entity_id,
-            reason=reason,
-            before=before,
-            after=after,
-        )
-    )
+_audit = audit_record
 
 
 def _version_snapshot(v: CashflowVersion) -> dict[str, Any]:
@@ -419,15 +400,29 @@ def summary(user: CurrentUser, db: DbSession, month: MonthParam = None) -> Summa
     s = dom.summarize(
         _category_infos(_categories(db, user.household_id)),
         _active_items(_items(db, user.household_id), m),
+        load_book(db, user.household_id).flows_at(m),
     )
     return SummaryOut(
         month=m,
         income=float(s.income),
         expenses=float(s.expenses),
+        financing=float(s.financing),
         balance=float(s.balance),
         savings_rate=float(s.savings_rate) if s.savings_rate is not None else None,
         income_groups=[_group_out(g) for g in s.income_groups],
         expense_groups=[_group_out(g) for g in s.expense_groups],
+        financing_flows=[
+            FinancingFlowOut(
+                financing_id=f.financing_id,
+                name=f.name,
+                interest=float(f.interest),
+                principal=float(f.principal),
+                saving=float(f.saving),
+                fee=float(f.fee),
+                total=float(f.total),
+            )
+            for f in s.financing_flows
+        ],
     )
 
 
@@ -437,6 +432,7 @@ def sankey(user: CurrentUser, db: DbSession, month: MonthParam = None) -> Sankey
     s = dom.build_sankey(
         _category_infos(_categories(db, user.household_id)),
         _active_items(_items(db, user.household_id), m),
+        load_book(db, user.household_id).flows_at(m),
     )
     return SankeyOut(
         month=m,
@@ -463,14 +459,16 @@ def series(
         raise HTTPException(422, "Höchstens 240 Monate pro Abfrage")
     cats = _category_infos(_categories(db, user.household_id))
     items = _items(db, user.household_id)
+    book = load_book(db, user.household_id)
     out: list[SeriesPoint] = []
     for m in months:
-        s = dom.summarize(cats, _active_items(items, m))
+        s = dom.summarize(cats, _active_items(items, m), book.flows_at(m))
         out.append(
             SeriesPoint(
                 month=m,
                 income=float(s.income),
                 expenses=float(s.expenses),
+                financing=float(s.financing),
                 balance=float(s.balance),
             )
         )
@@ -497,6 +495,7 @@ def audit_log(
     )
     version_items = {version_id: item_id for version_id, item_id in version_rows}
     category_names = {c.id: c.name for c in _categories(db, user.household_id)}
+    financing_names = {f.id: f.name for f in load_financings(db, user.household_id)}
 
     def subject(a: AuditLog) -> str | None:
         if a.entity == "cashflow_item":
@@ -505,6 +504,8 @@ def audit_log(
             return item_names.get(version_items.get(a.entity_id, -1))
         if a.entity == "category":
             return category_names.get(a.entity_id)
+        if a.entity == "financing":
+            return financing_names.get(a.entity_id)
         return None
 
     return [

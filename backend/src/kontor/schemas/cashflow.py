@@ -98,14 +98,26 @@ class GroupOut(BaseModel):
     children: list["GroupOut"]
 
 
+class FinancingFlowOut(BaseModel):
+    financing_id: int
+    name: str
+    interest: float
+    principal: float
+    saving: float
+    fee: float
+    total: float
+
+
 class SummaryOut(BaseModel):
     month: Month
     income: float
-    expenses: float
-    balance: float
+    expenses: float  # running costs without financings
+    financing: float
+    balance: float  # income - expenses - financing
     savings_rate: float | None
     income_groups: list[GroupOut]
     expense_groups: list[GroupOut]
+    financing_flows: list[FinancingFlowOut]
 
 
 class SankeyNodeOut(BaseModel):
@@ -130,6 +142,7 @@ class SeriesPoint(BaseModel):
     month: Month
     income: float
     expenses: float
+    financing: float
     balance: float
 
 
