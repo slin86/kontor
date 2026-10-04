@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from kontor.domain.cashflow import VersionSpec
 from kontor.domain.depot import Position
-from kontor.models import Instrument
+from kontor.domain.tax import TaxConfig
+from kontor.models import Instrument, TaxSettings
 
 PERCENT = Decimal(100)
 
@@ -29,6 +30,7 @@ def to_position(i: Instrument) -> Position:
         start_value=Decimal(i.start_value),
         rates=rate_specs(i),
         one_offs=_summed(i),
+        tax_exempt=Decimal(i.tax_exempt_percent) / PERCENT,
     )
 
 
@@ -48,4 +50,16 @@ def load_instruments(db: Session, household_id: int) -> list[Instrument]:
             .options(selectinload(Instrument.rates), selectinload(Instrument.one_offs))
             .order_by(Instrument.name, Instrument.id)
         )
+    )
+
+
+def tax_config(db: Session, household_id: int) -> TaxConfig:
+    """The household's tax settings, or the defaults when none were saved."""
+    row = db.get(TaxSettings, household_id)
+    if row is None:
+        return TaxConfig()
+    return TaxConfig(
+        church_tax=Decimal(row.church_tax_percent) / PERCENT,
+        allowance=Decimal(row.allowance),
+        future_base_interest=Decimal(row.base_interest_percent) / PERCENT,
     )

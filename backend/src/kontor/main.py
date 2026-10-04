@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from kontor.api import actuals, auth, cashflow, catalog, depot, financings, outlook
+from kontor.api import actuals, auth, cashflow, catalog, depot, financings, outlook, tax
 from kontor.core.config import get_settings
 
 
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(depot.router)
     app.include_router(catalog.router)
     app.include_router(actuals.router)
+    app.include_router(tax.router)
     return app
 
 

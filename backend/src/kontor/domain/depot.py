@@ -44,6 +44,7 @@ class Position:
     start_value: Decimal
     rates: list[VersionSpec] = field(default_factory=list)
     one_offs: dict[date, Decimal] = field(default_factory=dict)
+    tax_exempt: Decimal = ZERO  # Teilfreistellung as a fraction (0.3 = 30 % of gains are tax free)
 
 
 @dataclass(frozen=True)

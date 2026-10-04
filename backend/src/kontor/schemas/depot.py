@@ -11,6 +11,7 @@ Kind = Literal["etf", "private_equity"]
 Percent = Annotated[Decimal, Field(ge=-20, le=40, max_digits=7, decimal_places=3)]
 CostPercent = Annotated[Decimal, Field(ge=0, le=15, max_digits=7, decimal_places=3)]
 Euro = Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=2)]
+Share = Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
 Isin = Annotated[str, Field(pattern=r"^[A-Za-z]{2}[A-Za-z0-9]{9}[0-9]$")]
 
 
@@ -20,6 +21,8 @@ class Assumptions(BaseModel):
     expected_return_percent: Percent
     cost_percent: CostPercent = Decimal(0)
     entry_fee_percent: CostPercent = Decimal(0)
+    # Teilfreistellung; ``None`` means 30 for new ETFs, 0 for private equity, unchanged on update.
+    tax_exempt_percent: Share | None = None
 
 
 class InstrumentIn(Assumptions):
@@ -70,6 +73,7 @@ class InstrumentOut(BaseModel):
     expected_return_percent: float
     cost_percent: float
     entry_fee_percent: float
+    tax_exempt_percent: float
     start: Month
     start_value: float
     current_rate: float  # savings rate in the current month
@@ -102,6 +106,9 @@ class ProjectionPoint(BaseModel):
     deposit: float
     fees: float
     balances: list[float]  # aligned with ``instruments``
+    tax_paid: float  # cumulative tax on Vorabpauschalen
+    tax_on_sale: float  # tax due if everything were sold at the end of the month
+    net_value: float  # value minus both taxes
 
 
 class ProjectionOut(BaseModel):
@@ -109,6 +116,7 @@ class ProjectionOut(BaseModel):
     last: Month
     return_shift_percent: float
     inflation_percent: float
+    tax_rate_percent: float
     base_rate: float
     instruments: list[ProjectionInstrument]
     points: list[ProjectionPoint]

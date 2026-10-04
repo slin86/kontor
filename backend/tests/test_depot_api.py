@@ -190,3 +190,62 @@ def test_delete_position_keeps_the_audit_trail(client: TestClient) -> None:
     assert client.get("/api/depot").json()["instruments"] == []
     entry = next(e for e in client.get("/api/audit").json() if e["action"] == "delete")
     assert entry["before"]["name"] == "MSCI World"
+
+
+def test_projection_has_net_values_and_tax_settings(client: TestClient) -> None:
+    _login(client)
+    client.post("/api/depot/instruments", json=ETF)
+    plain = client.get("/api/depot/projection?years=20").json()
+    last = plain["points"][-1]
+    assert plain["tax_rate_percent"] == 26.375
+    assert 0 < last["net_value"] < last["value"]
+    assert last["tax_on_sale"] > 0
+    assert round(last["value"] - last["tax_paid"] - last["tax_on_sale"], 1) == round(
+        last["net_value"], 1
+    )
+
+    r = client.put(
+        "/api/tax/settings",
+        json={"church_tax_percent": 9, "allowance": "2000", "base_interest_percent": "2.5"},
+    )
+    assert r.status_code == 200
+    assert r.json()["tax_rate_percent"] == 27.995
+    assert client.get("/api/tax/settings").json()["allowance"] == 2000
+    church = client.get("/api/depot/projection?years=20").json()
+    assert church["tax_rate_percent"] == 27.995
+    assert church["points"][-1]["net_value"] != last["net_value"]
+
+
+def test_tax_settings_defaults_validation_and_isolation(client: TestClient) -> None:
+    _login(client)
+    d = client.get("/api/tax/settings").json()
+    assert (d["church_tax_percent"], d["allowance"], d["base_interest_percent"]) == (0, 1000, 3.2)
+    assert client.put("/api/tax/settings", json={"church_tax_percent": 7}).status_code == 422
+    client.put("/api/tax/settings", json={"church_tax_percent": 8})
+    other = TestClient(client.app)
+    _login(other, "other@example.com")
+    assert other.get("/api/tax/settings").json()["church_tax_percent"] == 0
+
+
+def test_teilfreistellung_defaults_by_kind_and_can_be_changed(client: TestClient) -> None:
+    _login(client)
+    etf = client.post("/api/depot/instruments", json=ETF).json()
+    eqt = client.post("/api/depot/instruments", json=EQT).json()
+    assert etf["tax_exempt_percent"] == 30
+    assert eqt["tax_exempt_percent"] == 0
+    body = {
+        "name": "MSCI World",
+        "expected_return_percent": "6",
+        "cost_percent": "0.2",
+        "entry_fee_percent": "0",
+        "tax_exempt_percent": "15",
+    }
+    assert (
+        client.put(f"/api/depot/instruments/{etf['id']}", json=body).json()["tax_exempt_percent"]
+        == 15
+    )
+    del body["tax_exempt_percent"]  # omitted keeps the stored value
+    assert (
+        client.put(f"/api/depot/instruments/{etf['id']}", json=body).json()["tax_exempt_percent"]
+        == 15
+    )

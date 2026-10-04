@@ -12,6 +12,7 @@ from kontor.api.deps import CurrentUser, DbSession
 from kontor.core.clock import add_months, current_month, format_month
 from kontor.domain import cashflow as cf
 from kontor.domain import depot as dom
+from kontor.domain import tax as tax_dom
 from kontor.models import (
     ActualValue,
     DepotTransaction,
@@ -36,7 +37,7 @@ from kontor.schemas.depot import (
     RateOut,
 )
 from kontor.services.audit import record as audit
-from kontor.services.depot_book import load_instruments, rate_specs, to_position
+from kontor.services.depot_book import load_instruments, rate_specs, tax_config, to_position
 
 router = APIRouter(prefix="/api/depot", tags=["depot"])
 
@@ -54,6 +55,12 @@ def _get(db: Session, user: CurrentUser, instrument_id: int) -> Instrument:
     return i
 
 
+def _default_exempt(body: InstrumentIn) -> Decimal:
+    if body.tax_exempt_percent is not None:
+        return body.tax_exempt_percent
+    return Decimal(30) if body.kind == "etf" else Decimal(0)
+
+
 def _check(i: Instrument) -> None:
     """Reject plans that cannot be projected (a withdrawal larger than the balance)."""
     try:
@@ -69,6 +76,7 @@ def _snapshot(i: Instrument) -> dict[str, Any]:
         "expected_return_percent": str(i.expected_return_percent),
         "cost_percent": str(i.cost_percent),
         "entry_fee_percent": str(i.entry_fee_percent),
+        "tax_exempt_percent": str(i.tax_exempt_percent),
         "start": format_month(i.start),
         "start_value": str(i.start_value),
     }
@@ -87,6 +95,7 @@ def _summary(i: Instrument) -> InstrumentOut:
         expected_return_percent=float(i.expected_return_percent),
         cost_percent=float(i.cost_percent),
         entry_fee_percent=float(i.entry_fee_percent),
+        tax_exempt_percent=float(i.tax_exempt_percent),
         start=i.start,
         start_value=float(i.start_value),
         current_rate=float(dom.rate_at(position, today)) if i.start <= today else 0.0,
@@ -172,6 +181,7 @@ def create_instrument(body: InstrumentIn, user: CurrentUser, db: DbSession) -> I
         expected_return_percent=body.expected_return_percent,
         cost_percent=body.cost_percent,
         entry_fee_percent=body.entry_fee_percent,
+        tax_exempt_percent=_default_exempt(body),
         start=body.start,
         start_value=body.start_value,
     )
@@ -207,6 +217,8 @@ def update_assumptions(
     i.expected_return_percent = body.expected_return_percent
     i.cost_percent = body.cost_percent
     i.entry_fee_percent = body.entry_fee_percent
+    if body.tax_exempt_percent is not None:
+        i.tax_exempt_percent = body.tax_exempt_percent
     db.flush()
     db.refresh(i)
     _check(i)
@@ -383,6 +395,11 @@ def projection(
         raise HTTPException(422, str(e)) from e
 
     infl = inflation / 100
+    config = tax_config(db, user.household_id)
+    try:
+        taxes = {t.month: t for t in tax_dom.project_tax(positions, first, last, config, shift)}
+    except dom.DepotError as e:
+        raise HTTPException(422, str(e)) from e
 
     def real(value: Decimal, month: date) -> float:
         # Today's purchasing power: later months are deflated, past months stay as they are.
@@ -397,6 +414,9 @@ def projection(
             deposit=float(cf.cents(m.deposit)),
             fees=float(cf.cents(m.fees)),
             balances=[real(m.balances[p.id], m.month) for p in positions],
+            tax_paid=real(taxes[m.month].vorab_paid, m.month),
+            tax_on_sale=real(taxes[m.month].sale_tax, m.month),
+            net_value=real(m.value - taxes[m.month].total, m.month),
         )
         for m in months
     ]
@@ -405,6 +425,7 @@ def projection(
         last=last,
         return_shift_percent=float(return_shift),
         inflation_percent=float(inflation),
+        tax_rate_percent=round(float(tax_dom.tax_rate(config.church_tax)) * 100, 3),
         base_rate=float(dom.base_rate(positions, today)),
         instruments=[
             ProjectionInstrument(id=i.id, name=i.name, kind=i.kind.value) for i in instruments

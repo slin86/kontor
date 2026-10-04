@@ -38,6 +38,10 @@ class Instrument(Base):
     entry_fee_percent: Mapped[Decimal] = mapped_column(Numeric(7, 3), default=0)
     start: Mapped[date] = mapped_column(Date)
     start_value: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
+    # Teilfreistellung in percent: share of gains that is exempt from tax (30 for equity funds).
+    tax_exempt_percent: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     rates: Mapped[list["SavingsRate"]] = relationship(
@@ -79,3 +83,14 @@ class OneOffPayment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     instrument: Mapped[Instrument] = relationship(back_populates="one_offs")
+
+
+class TaxSettings(Base):
+    """Household-wide inputs for the tax estimate (one row per household)."""
+
+    __tablename__ = "tax_settings"
+
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), primary_key=True)
+    church_tax_percent: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=0)
+    allowance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=1000)
+    base_interest_percent: Mapped[Decimal] = mapped_column(Numeric(5, 3), default=Decimal("3.2"))
