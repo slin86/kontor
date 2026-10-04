@@ -24,10 +24,13 @@ const ACTION_LABEL: Record<string, string> = {
   backfill: 'rückwirkend angelegt',
   change: 'geändert',
   end: 'beendet',
-  update: 'umbenannt',
+  update: 'angepasst',
   correction: 'korrigiert',
   event_add: 'Ereignis hinzugefügt',
   event_remove: 'Ereignis entfernt',
+  rate_change: 'Sparrate geändert',
+  oneoff_add: 'Einmalzahlung hinzugefügt',
+  oneoff_remove: 'Einmalzahlung entfernt',
 }
 
 function AuditList({ entries }: { entries: AuditEntry[] }) {

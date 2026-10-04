@@ -12,7 +12,7 @@ Self-hosted, built for a homelab.
 | 1 | Backend skeleton, accounts (households with several members), Docker, CI | this branch |
 | 2 | Cashflow: income/expenses (monthly, quarterly, yearly), timeline, Sankey and charts | this branch |
 | 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | this branch |
-| 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | planned |
+| 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | this branch |
 | 5 | Instrument search (ETF / private equity), costs, comparison, CSV import | planned |
 | 6 | Plan vs. actual, polish | planned |
 
@@ -63,6 +63,24 @@ Not covered yet: correcting the *dates* of a version, deleting items, renaming/d
   special repayments are left out so the curve shows the regular budget.
 
 Not covered yet: deleting a financing, scenarios with several interest paths.
+
+## Depot plan
+
+- A **position** is an ETF or a private-equity holding with an expected annual return, running costs (TER),
+  an optional entry fee, a start month and the value it already has at the start.
+- Every position has its own **savings rate** (effective-dated like cashflow items: change from month X,
+  later planned changes are kept, 0 pauses saving) and **one-off payments** (deposits or withdrawals).
+  The **depot base rate** is the sum of all current rates.
+- Projection: each month the balance grows by `(1 + return - cost)^(1/12) - 1`, then the savings rate and
+  one-offs are added (minus the entry fee). It runs for up to 100 years and starts at the earliest
+  position, so the past is visible too. Withdrawals larger than the balance are rejected.
+- Scenarios shift every position's return by a number of percentage points; optional inflation shows
+  values in today's purchasing power.
+- Locking works as elsewhere: the plan for past months cannot be changed. Start month and start value can be
+  corrected with a reason; every change is in the audit log.
+
+Not covered yet: tax, actual values (plan vs. actual), instrument search and cost comparison,
+CSV import, deleting positions.
 
 ## Frontend
 
@@ -124,6 +142,12 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `POST /api/financings/{id}/correct` | Correct contract data (reason required) |
 | `POST /api/financings/{id}/events`, `DELETE .../events/{event_id}` | Add / remove a dated event |
 | `GET /api/outlook?start=&years=&income_growth=&expense_growth=` | Budget outlook |
+| `GET /api/depot` | Base rate, planned value and all positions |
+| `POST /api/depot/instruments`, `GET/PUT .../{id}` | Create a position, read it, change its assumptions |
+| `POST /api/depot/instruments/{id}/correct` | Correct start month and value (reason required) |
+| `POST /api/depot/instruments/{id}/rate` | New savings rate from a month on |
+| `POST /api/depot/instruments/{id}/one-offs`, `DELETE .../{one_off_id}` | Add / remove a one-off payment |
+| `GET /api/depot/projection?years=&start=&return_shift=&inflation=` | Month-by-month projection |
 
 ## Deployment (homelab)
 

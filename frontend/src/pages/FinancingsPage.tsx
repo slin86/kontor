@@ -82,7 +82,7 @@ function Outlook() {
             onBlur={commit(setIncome)}
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             inputMode="decimal"
-            className={`${input} !mt-1 w-28`}
+            className={`${input} !mt-1 !w-24`}
           />
         </label>
         <label>
@@ -92,7 +92,7 @@ function Outlook() {
             onBlur={commit(setExpense)}
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             inputMode="decimal"
-            className={`${input} !mt-1 w-28`}
+            className={`${input} !mt-1 !w-24`}
           />
         </label>
       </div>

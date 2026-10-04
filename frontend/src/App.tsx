@@ -4,8 +4,8 @@ import { useAuth } from './auth'
 import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
 import { CashflowPage } from './pages/CashflowPage'
+import { DepotPage } from './pages/DepotPage'
 import { FinancingsPage } from './pages/FinancingsPage'
-import { Placeholder } from './pages/Placeholder'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { me, loading } = useAuth()
@@ -27,7 +27,7 @@ export default function App() {
       >
         <Route index element={<CashflowPage />} />
         <Route path="finanzierungen" element={<FinancingsPage />} />
-        <Route path="depot" element={<Placeholder title="Depot" text="Der Depotplan folgt in der nächsten Ausbaustufe." />} />
+        <Route path="depot" element={<DepotPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
