@@ -38,6 +38,7 @@ from kontor.schemas.cashflow import (
     VersionOut,
 )
 from kontor.services.audit import record as audit_record
+from kontor.services.depot_book import load_instruments
 from kontor.services.financing_book import load_book, load_financings
 
 router = APIRouter(prefix="/api", tags=["cashflow"])
@@ -388,7 +389,7 @@ def _group_out(g: dom.GroupSummary) -> GroupOut:
     return GroupOut(
         category_id=g.category_id,
         name=g.name,
-        kind=g.kind,  # type: ignore[arg-type]
+        kind=g.kind,
         total=float(g.total),
         children=[_group_out(c) for c in g.children],
     )
@@ -496,6 +497,7 @@ def audit_log(
     version_items = {version_id: item_id for version_id, item_id in version_rows}
     category_names = {c.id: c.name for c in _categories(db, user.household_id)}
     financing_names = {f.id: f.name for f in load_financings(db, user.household_id)}
+    instrument_names = {i.id: i.name for i in load_instruments(db, user.household_id)}
 
     def subject(a: AuditLog) -> str | None:
         if a.entity == "cashflow_item":
@@ -506,6 +508,8 @@ def audit_log(
             return category_names.get(a.entity_id)
         if a.entity == "financing":
             return financing_names.get(a.entity_id)
+        if a.entity == "instrument":
+            return instrument_names.get(a.entity_id)
         return None
 
     return [

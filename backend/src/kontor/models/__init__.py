@@ -9,6 +9,7 @@ from kontor.models.cashflow import (
     CategoryKind,
     Frequency,
 )
+from kontor.models.depot import Instrument, InstrumentKind, OneOffPayment, SavingsRate
 from kontor.models.financing import Financing, FinancingEvent, FinancingKind
 
 __all__ = [
@@ -23,5 +24,9 @@ __all__ = [
     "FinancingKind",
     "Frequency",
     "Household",
+    "Instrument",
+    "InstrumentKind",
+    "OneOffPayment",
+    "SavingsRate",
     "User",
 ]

@@ -91,14 +91,14 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
 
     return FinancingOut(
         id=f.id,
-        kind=f.kind.value,  # type: ignore[arg-type]
+        kind=f.kind.value,
         name=f.name,
         purpose=f.purpose,
         start=schedule.first_month,
         end_month=schedule.end_month,
         regular_payment=float(schedule.regular_payment),
         payment_this_month=float(this.outflow) if this else 0.0,
-        phase=phase,  # type: ignore[arg-type]
+        phase=phase,
         remaining_debt=remaining_debt,
         saved=saved,
         total_interest=float(sum(r.interest for r in rows)),
