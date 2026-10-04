@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     # Set to True when served over HTTPS (e.g. behind a reverse proxy in the homelab).
     cookie_secure: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
+    # Used to decide which month is "now" (everything before it is locked history).
+    timezone: str = "Europe/Berlin"
 
 
 @lru_cache

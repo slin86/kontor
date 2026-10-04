@@ -16,6 +16,7 @@ from kontor.core.security import (
 )
 from kontor.models import AuthSession, Household, User
 from kontor.schemas.auth import HouseholdOut, LoginRequest, MeOut, RegisterRequest, UserOut
+from kontor.services.categories import seed_default_categories
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -82,6 +83,7 @@ def register(body: RegisterRequest, response: Response, db: DbSession) -> MeOut:
         household = Household(name=body.household_name or "", invite_code=new_token())
         db.add(household)
         db.flush()
+        seed_default_categories(db, household.id)
 
     user = User(
         household_id=household.id,
