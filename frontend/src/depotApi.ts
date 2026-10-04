@@ -15,6 +15,7 @@ export interface Instrument {
   expected_return_percent: number
   cost_percent: number
   entry_fee_percent: number
+  tax_exempt_percent: number
   start: string
   start_value: number
   current_rate: number
@@ -57,6 +58,9 @@ export interface ProjectionPoint {
   deposit: number
   fees: number
   balances: number[]
+  tax_paid: number
+  tax_on_sale: number
+  net_value: number
 }
 
 export interface Projection {
@@ -64,6 +68,7 @@ export interface Projection {
   last: string
   return_shift_percent: number
   inflation_percent: number
+  tax_rate_percent: number
   base_rate: number
   instruments: { id: number; name: string; kind: InstrumentKind }[]
   points: ProjectionPoint[]
@@ -75,6 +80,7 @@ export interface Assumptions {
   expected_return_percent: string
   cost_percent: string
   entry_fee_percent: string
+  tax_exempt_percent?: string
 }
 
 export interface NewInstrument extends Assumptions {
@@ -100,4 +106,22 @@ export const depotApi = {
     api<InstrumentDetail>(`/depot/instruments/${id}/one-offs/${oneOffId}`, { method: 'DELETE' }),
   projection: (years: number, shift: number, inflation: number) =>
     api<Projection>(`/depot/projection?years=${years}&return_shift=${shift}&inflation=${inflation}`),
+}
+
+export interface TaxSettings {
+  church_tax_percent: number
+  allowance: number
+  base_interest_percent: number
+  tax_rate_percent: number
+}
+
+export interface TaxSettingsInput {
+  church_tax_percent: number
+  allowance: string
+  base_interest_percent: string
+}
+
+export const taxApi = {
+  get: () => api<TaxSettings>('/tax/settings'),
+  save: (json: TaxSettingsInput) => api<TaxSettings>('/tax/settings', { method: 'PUT', json }),
 }

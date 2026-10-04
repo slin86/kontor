@@ -10,16 +10,8 @@ import {
   type NewInstrument,
 } from '../depotApi'
 import { useMonth } from '../month'
+import { ErrorLine } from './ErrorLine'
 import { decimalString, input, primary, secondary } from './ui'
-
-function ErrorLine({ error }: { error: unknown }) {
-  if (!error) return null
-  return (
-    <p role="alert" className="text-sm font-medium text-bake">
-      {error instanceof Error ? error.message : 'Das hat nicht geklappt.'}
-    </p>
-  )
-}
 
 const show = (v: number | string | null | undefined) => (v === null || v === undefined ? '' : String(v).replace('.', ','))
 
@@ -72,6 +64,7 @@ function readAssumptions(f: FormData): Assumptions {
     expected_return_percent: decimalString(f.get('expected_return_percent')),
     cost_percent: decimalString(f.get('cost_percent')),
     entry_fee_percent: decimalString(f.get('entry_fee_percent')),
+    tax_exempt_percent: decimalString(f.get('tax_exempt_percent')),
   }
 }
 
@@ -109,6 +102,12 @@ function AssumptionFields({ initial, kind }: { initial?: Partial<InstrumentDetai
         label="Ausgabeaufschlag in Prozent der Einzahlung"
         name="entry_fee_percent"
         initial={initial?.entry_fee_percent ?? 0}
+      />
+      <Num
+        label="Teilfreistellung in Prozent"
+        name="tax_exempt_percent"
+        initial={initial?.tax_exempt_percent ?? (kind === 'etf' ? 30 : 0)}
+        hint="Steuerfreier Anteil der Erträge. Aktienfonds 30, Mischfonds 15, Anleihefonds 0. Bei Private Equity meist 0."
       />
     </>
   )

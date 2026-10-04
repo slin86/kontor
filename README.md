@@ -15,6 +15,7 @@ Self-hosted, built for a homelab.
 | 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | this branch |
 | 5 | Instrument search (ETF / private equity), costs, cost comparison | this branch |
 | 6 | Actual values, plan vs. actual, broker CSV import (Trade Republic), deleting positions and financings | this branch |
+| 7 | Tax estimate for the depot projection (Abgeltungsteuer, Vorabpauschale, Teilfreistellung) | this branch |
 
 ## Design principles
 
@@ -114,7 +115,28 @@ Not covered yet: automatic data updates, tracking difference, live prices.
   The real export format is not officially documented, so check the preview before importing.
 - Positions and financings can be deleted (audited). Transactions of a deleted position stay, unlinked.
 
-Not covered yet: tax, live prices, importing month-end values from a statement.
+Not covered yet: live prices, importing month-end values from a statement.
+
+## Tax estimate
+
+The depot projection shows a second line, **after tax if everything were sold in that month**. It is an
+approximation of German capital gains tax, not tax advice. Rules and rates change, so check them.
+
+- **Rate**: 25 % plus 5.5 % solidarity surcharge (26.375 %). With church tax (8 % or 9 %) the base rate
+  drops to `25 % / (1 + 25 % * church rate)`, giving about 27.8 % or 28.0 %.
+- **Sparer-Pauschbetrag**: 1,000 euro per year (2,000 for couples), applied once per year to the whole depot.
+- **Teilfreistellung** per position: share of gains that is tax free (30 % equity funds, 15 % mixed funds,
+  0 % bond funds). Defaults: 30 for ETFs, 0 for private equity. Change it per position.
+- **Vorabpauschale** (accumulating funds): taxed each January for the previous year, as
+  `value * Basiszins * 70 %`, every purchase counting only for the months held, capped at the fund's real gain.
+  Basiszins: 2023 2.55 %, 2024 2.29 %, 2025 2.53 %, 2026 3.20 %, later years use your assumption (default 3.2 %).
+  The tax is assumed to be paid from outside the depot and is credited at sale, so gains are not taxed twice.
+- **Tax on sale**: gains minus the Vorabpauschalen already taxed, less Teilfreistellung and allowance.
+  Gains and losses of all positions are netted.
+
+Simplifications: planned withdrawals are not taxed individually, distributions are not modelled, no
+Verlustverrechnungstöpfe, no further income that uses up the allowance, tax on ETF-specific rules for
+special funds is not covered. Settings (church tax, allowance, Basiszins) are per household.
 
 ## Frontend
 
@@ -181,7 +203,8 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `POST /api/depot/instruments/{id}/correct` | Correct start month and value (reason required) |
 | `POST /api/depot/instruments/{id}/rate` | New savings rate from a month on |
 | `POST /api/depot/instruments/{id}/one-offs`, `DELETE .../{one_off_id}` | Add / remove a one-off payment |
-| `GET /api/depot/projection?years=&start=&return_shift=&inflation=` | Month-by-month projection |
+| `GET /api/depot/projection?years=&start=&return_shift=&inflation=` | Month-by-month projection incl. tax estimate |
+| `GET/PUT /api/tax/settings` | Church tax, allowance, assumed Basiszins |
 | `PUT /api/actuals/values`, `GET /api/actuals/values`, `DELETE /api/actuals/values/{id}` | Month-end values |
 | `GET/POST /api/actuals/transactions`, `DELETE .../{id}` | Real buys, sells, dividends |
 | `POST /api/actuals/import/preview`, `POST /api/actuals/import` | Broker CSV import (JSON body with the file text) |

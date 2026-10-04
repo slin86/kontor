@@ -8,6 +8,7 @@ import { AssumptionsForm, CorrectionForm, NewInstrumentForm, OneOffForm, RateFor
 import { input, primary } from '../components/ui'
 import { catalogApi } from '../catalogApi'
 import { depotApi, KIND_LABEL, type Instrument, type InstrumentDetail, type Rate } from '../depotApi'
+import { TaxSettingsForm } from '../components/TaxSettingsForm'
 import { euro } from '../format'
 import { useMonth } from '../month'
 import { monthLabel } from '../monthUtils'
@@ -113,13 +114,17 @@ function Projection() {
               )}
               <Figure label="Davon eingezahlt" value={euro(end.paid_in)} />
               <Figure label="Rechnerischer Ertrag" value={euro(end.value - end.paid_in)} tone={end.value >= end.paid_in ? 'plus' : 'minus'} />
+              <Figure label={`Nach Steuern bei Verkauf ${monthLabel(end.month)}`} value={euro(end.net_value)} />
+              <Figure label="Steuern insgesamt" value={euro(end.tax_paid + end.tax_on_sale)} tone="minus" />
             </div>
           )}
           <p className="mt-4 max-w-2xl text-sm text-tinte-weich">
             Grundlage sind die erwarteten Renditen und Kosten deiner Positionen. Das sind Annahmen, keine Zusagen. Die Linien
-            für pessimistisch und optimistisch verschieben die Rendite jeder Position um den gewählten Abstand. Steuern sind noch
-            nicht eingerechnet.
+            für pessimistisch und optimistisch verschieben die Rendite jeder Position um den gewählten Abstand. Die Linie „Nach
+            Steuern“ zeigt, was nach Abgeltungsteuer ({String(data.tax_rate_percent).replace('.', ',')} % auf steuerpflichtige
+            Erträge) übrig bliebe, wenn du in dem jeweiligen Monat alles verkaufst. Das ist eine Schätzung, keine Steuerberatung.
           </p>
+          <TaxSettingsForm />
         </>
       )}
       {data && !hasPositions && (
@@ -181,6 +186,7 @@ function Detail({ instrument }: { instrument: Instrument }) {
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         <Figure label="Geplanter Wert heute" value={euro(d.planned_value)} />
         <Figure label="Bisher eingezahlt" value={euro(d.paid_in)} />
+        <Figure label="Teilfreistellung" value={`${String(d.tax_exempt_percent).replace('.', ',')} %`} />
         <Figure label="Erwartete Rendite" value={`${String(d.expected_return_percent).replace('.', ',')} % pro Jahr`} />
         <Figure
           label="Kosten"

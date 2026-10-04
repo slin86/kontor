@@ -53,9 +53,10 @@ export function DepotChart({
     const series: object[] = [
       ...positions,
       line('Eingezahlt', base.points.map((p) => p.paid_in), '#12263a', 'dashed', 2),
+      line('Nach Steuern bei Verkauf', base.points.map((p) => p.net_value), '#c07a4a', 'solid', 2),
     ]
-    if (low) series.push(line(`Pessimistisch (${low.return_shift_percent} Pp.)`, low.points.map((p) => p.value), '#d2432f', 'solid', 1.5))
-    if (high) series.push(line(`Optimistisch (+${high.return_shift_percent} Pp.)`, high.points.map((p) => p.value), '#1f5c64', 'solid', 1.5))
+    if (low) series.push(line(`Pessimistisch vor Steuern (${low.return_shift_percent} Pp.)`, low.points.map((p) => p.value), '#d2432f', 'solid', 1.5))
+    if (high) series.push(line(`Optimistisch vor Steuern (+${high.return_shift_percent} Pp.)`, high.points.map((p) => p.value), '#1f5c64', 'solid', 1.5))
     return {
       grid: { left: 72, right: 16, top: narrow ? 84 : 40, bottom: 28 },
       legend: { top: 0, left: 0, textStyle: { color: '#4b5d6e' } },
