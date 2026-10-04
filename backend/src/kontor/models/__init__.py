@@ -9,6 +9,7 @@ from kontor.models.cashflow import (
     CategoryKind,
     Frequency,
 )
+from kontor.models.catalog import CatalogEntry
 from kontor.models.depot import Instrument, InstrumentKind, OneOffPayment, SavingsRate
 from kontor.models.financing import Financing, FinancingEvent, FinancingKind
 
@@ -17,6 +18,7 @@ __all__ = [
     "AuthSession",
     "CashflowItem",
     "CashflowVersion",
+    "CatalogEntry",
     "Category",
     "CategoryKind",
     "Financing",

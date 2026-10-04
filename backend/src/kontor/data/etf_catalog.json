@@ -1,0 +1,596 @@
+{
+ "source": "justETF (https://www.justetf.com), fund comparison tables",
+ "as_of": "2026-10",
+ "entries": [
+  {
+   "isin": "IE00B4L5Y983",
+   "name": "iShares Core MSCI World UCITS ETF USD (Acc)",
+   "index": "MSCI World",
+   "ter_percent": 0.2,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 129628
+  },
+  {
+   "isin": "IE00BJ0KDQ92",
+   "name": "Xtrackers MSCI World UCITS ETF 1C",
+   "index": "MSCI World",
+   "ter_percent": 0.12,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 21396
+  },
+  {
+   "isin": "IE00BFY0GT14",
+   "name": "State Street SPDR MSCI World UCITS ETF USD Unhedged (Acc)",
+   "index": "MSCI World",
+   "ter_percent": 0.12,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 18238
+  },
+  {
+   "isin": "IE000BI8OT95",
+   "name": "Amundi Core MSCI World UCITS ETF Acc",
+   "index": "MSCI World",
+   "ter_percent": 0.12,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 16880
+  },
+  {
+   "isin": "IE000CNSFAR2",
+   "name": "Amundi Core MSCI World UCITS ETF USD Dist",
+   "index": "MSCI World",
+   "ter_percent": 0.12,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 16880
+  },
+  {
+   "isin": "IE00B4X9L533",
+   "name": "HSBC MSCI World UCITS ETF USD",
+   "index": "MSCI World",
+   "ter_percent": 0.15,
+   "distribution": "distributing",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 13887
+  },
+  {
+   "isin": "IE00BD4TXV59",
+   "name": "UBS Core MSCI World UCITS ETF USD acc",
+   "index": "MSCI World",
+   "ter_percent": 0.06,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 11257
+  },
+  {
+   "isin": "IE00B60SX394",
+   "name": "Invesco MSCI World UCITS ETF",
+   "index": "MSCI World",
+   "ter_percent": 0.05,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 9047
+  },
+  {
+   "isin": "FR0010315770",
+   "name": "Amundi MSCI World Swap II UCITS ETF Dist",
+   "index": "MSCI World",
+   "ter_percent": 0.3,
+   "distribution": "distributing",
+   "replication": "swap",
+   "domicile": "France",
+   "fund_size_m_eur": 8805
+  },
+  {
+   "isin": "IE00B0M62Q58",
+   "name": "iShares MSCI World UCITS ETF (Dist)",
+   "index": "MSCI World",
+   "ter_percent": 0.5,
+   "distribution": "distributing",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 8289
+  },
+  {
+   "isin": "LU1681043599",
+   "name": "Amundi MSCI World Swap UCITS ETF EUR Acc",
+   "index": "MSCI World",
+   "ter_percent": 0.38,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 6677
+  },
+  {
+   "isin": "LU2572257124",
+   "name": "Amundi Core MSCI World Swap UCITS ETF Dist",
+   "index": "MSCI World",
+   "ter_percent": 0.2,
+   "distribution": "distributing",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 6653
+  },
+  {
+   "isin": "LU2263803533",
+   "name": "Xtrackers MSCI World Swap UCITS ETF 1D",
+   "index": "MSCI World",
+   "ter_percent": 0.19,
+   "distribution": "distributing",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 5787
+  },
+  {
+   "isin": "DE000ETFL508",
+   "name": "Deka MSCI World UCITS ETF",
+   "index": "MSCI World",
+   "ter_percent": 0.3,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Germany",
+   "fund_size_m_eur": 5706
+  },
+  {
+   "isin": "LU0274208692",
+   "name": "Xtrackers MSCI World Swap UCITS ETF 1C",
+   "index": "MSCI World",
+   "ter_percent": 0.45,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 5353
+  },
+  {
+   "isin": "IE00BK1PV551",
+   "name": "Xtrackers MSCI World UCITS ETF 1D",
+   "index": "MSCI World",
+   "ter_percent": 0.12,
+   "distribution": "distributing",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 4760
+  },
+  {
+   "isin": "IE000UQND7H4",
+   "name": "HSBC MSCI World UCITS ETF USD (Acc)",
+   "index": "MSCI World",
+   "ter_percent": 0.15,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 2218
+  },
+  {
+   "isin": "IE000F9IDGB5",
+   "name": "iShares MSCI World Swap UCITS ETF USD (Acc)",
+   "index": "MSCI World",
+   "ter_percent": 0.12,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 2072
+  },
+  {
+   "isin": "IE00B7KQ7B66",
+   "name": "UBS Core MSCI World UCITS ETF USD dis",
+   "index": "MSCI World",
+   "ter_percent": 0.06,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 2044
+  },
+  {
+   "isin": "LU0340285161",
+   "name": "UBS MSCI World UCITS ETF USD dis",
+   "index": "MSCI World",
+   "ter_percent": 0.3,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 1477
+  },
+  {
+   "isin": "FR0014003IY1",
+   "name": "Amundi MSCI World Swap II UCITS ETF Acc",
+   "index": "MSCI World",
+   "ter_percent": 0.3,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "France",
+   "fund_size_m_eur": 713
+  },
+  {
+   "isin": "IE00B5BMR087",
+   "name": "iShares Core S&P 500 UCITS ETF USD (Acc)",
+   "index": "S&P 500",
+   "ter_percent": 0.07,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 136043
+  },
+  {
+   "isin": "IE00B3XXRP09",
+   "name": "Vanguard S&P 500 UCITS ETF (USD) Distributing",
+   "index": "S&P 500",
+   "ter_percent": 0.07,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 46355
+  },
+  {
+   "isin": "IE00B3YCGJ38",
+   "name": "Invesco S&P 500 UCITS ETF",
+   "index": "S&P 500",
+   "ter_percent": 0.05,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 38196
+  },
+  {
+   "isin": "IE00BFMXXD54",
+   "name": "Vanguard S&P 500 UCITS ETF (USD) Accumulating",
+   "index": "S&P 500",
+   "ter_percent": 0.07,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 32001
+  },
+  {
+   "isin": "IE0031442068",
+   "name": "iShares Core S&P 500 UCITS ETF USD (Dist)",
+   "index": "S&P 500",
+   "ter_percent": 0.07,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 20145
+  },
+  {
+   "isin": "IE00B6YX5C33",
+   "name": "State Street SPDR S&P 500 UCITS ETF USD Unhedged (Dist)",
+   "index": "S&P 500",
+   "ter_percent": 0.03,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 18578
+  },
+  {
+   "isin": "IE000XZSV718",
+   "name": "State Street SPDR S&P 500 UCITS ETF USD Unhedged (Acc)",
+   "index": "S&P 500",
+   "ter_percent": 0.03,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 16890
+  },
+  {
+   "isin": "LU1135865084",
+   "name": "Amundi Core S&P 500 Swap UCITS ETF Acc",
+   "index": "S&P 500",
+   "ter_percent": 0.05,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 16651
+  },
+  {
+   "isin": "IE00BMTX1Y45",
+   "name": "iShares S&P 500 Swap UCITS ETF USD (Acc)",
+   "index": "S&P 500",
+   "ter_percent": 0.05,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 13645
+  },
+  {
+   "isin": "IE00BYML9W36",
+   "name": "Invesco S&P 500 UCITS ETF Dist",
+   "index": "S&P 500",
+   "ter_percent": 0.05,
+   "distribution": "distributing",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 9079
+  },
+  {
+   "isin": "IE00B5KQNG97",
+   "name": "HSBC S&P 500 UCITS ETF USD",
+   "index": "S&P 500",
+   "ter_percent": 0.09,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 8715
+  },
+  {
+   "isin": "IE000HY30YW6",
+   "name": "Xtrackers S&P 500 Swap II UCITS ETF 1C",
+   "index": "S&P 500",
+   "ter_percent": 0.05,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 5155
+  },
+  {
+   "isin": "IE000Z9SJA06",
+   "name": "Xtrackers S&P 500 UCITS ETF 4C",
+   "index": "S&P 500",
+   "ter_percent": 0.03,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 2412
+  },
+  {
+   "isin": "IE00BD4TXW66",
+   "name": "UBS Core S&P 500 UCITS ETF USD acc",
+   "index": "S&P 500",
+   "ter_percent": 0.03,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 2102
+  },
+  {
+   "isin": "IE00B7K93397",
+   "name": "UBS Core S&P 500 UCITS ETF USD dis",
+   "index": "S&P 500",
+   "ter_percent": 0.03,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 1264
+  },
+  {
+   "isin": "IE00BK5BQT80",
+   "name": "Vanguard FTSE All-World UCITS ETF (USD) Accumulating",
+   "index": "FTSE All-World",
+   "ter_percent": 0.14,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 53011
+  },
+  {
+   "isin": "IE00B3RBWM25",
+   "name": "Vanguard FTSE All-World UCITS ETF (USD) Distributing",
+   "index": "FTSE All-World",
+   "ter_percent": 0.14,
+   "distribution": "distributing",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 23867
+  },
+  {
+   "isin": "IE000716YHJ7",
+   "name": "Invesco FTSE All-World UCITS ETF (Acc)",
+   "index": "FTSE All-World",
+   "ter_percent": 0.15,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 4111
+  },
+  {
+   "isin": "IE0000QLH0G6",
+   "name": "Invesco FTSE All-World UCITS ETF (Dist)",
+   "index": "FTSE All-World",
+   "ter_percent": 0.15,
+   "distribution": "distributing",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 283
+  },
+  {
+   "isin": "IE000L6ZMMC4",
+   "name": "Xtrackers FTSE All-World UCITS ETF 1C",
+   "index": "FTSE All-World",
+   "ter_percent": 0.07,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 145
+  },
+  {
+   "isin": "IE00B6R52259",
+   "name": "iShares MSCI All Country World UCITS ETF USD (Acc)",
+   "index": "MSCI ACWI",
+   "ter_percent": 0.2,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 32309
+  },
+  {
+   "isin": "IE00B44Z5B48",
+   "name": "State Street SPDR MSCI All Country World UCITS ETF USD Unhedged (Acc)",
+   "index": "MSCI ACWI",
+   "ter_percent": 0.12,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 17504
+  },
+  {
+   "isin": "LU1829220216",
+   "name": "Amundi MSCI All Country World Swap UCITS ETF EUR Acc",
+   "index": "MSCI ACWI",
+   "ter_percent": 0.45,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 2456
+  },
+  {
+   "isin": "LU2903252349",
+   "name": "Scalable MSCI AC World Xtrackers UCITS ETF 1C",
+   "index": "MSCI ACWI",
+   "ter_percent": 0.15,
+   "distribution": "accumulating",
+   "replication": "mixed",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 795
+  },
+  {
+   "isin": "LU1829220133",
+   "name": "Amundi MSCI All Country World Swap UCITS ETF USD Acc",
+   "index": "MSCI ACWI",
+   "ter_percent": 0.45,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 129
+  },
+  {
+   "isin": "IE00BTJRMP35",
+   "name": "Xtrackers MSCI Emerging Markets UCITS ETF 1C",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.18,
+   "distribution": "accumulating",
+   "replication": "optimized_sampling",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 12482
+  },
+  {
+   "isin": "IE00B4L5YC18",
+   "name": "iShares MSCI EM UCITS ETF (Acc)",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.18,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 9236
+  },
+  {
+   "isin": "IE00B0M63177",
+   "name": "iShares MSCI EM UCITS ETF (Dist)",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.18,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 8991
+  },
+  {
+   "isin": "LU2573966905",
+   "name": "Amundi Core MSCI Emerging Markets Swap UCITS ETF Dist",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.14,
+   "distribution": "distributing",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 5495
+  },
+  {
+   "isin": "LU2573967036",
+   "name": "Amundi Core MSCI Emerging Markets Swap UCITS ETF Acc",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.14,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 5290
+  },
+  {
+   "isin": "LU1437017350",
+   "name": "Amundi Core MSCI Emerging Markets UCITS ETF Acc",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.18,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 4300
+  },
+  {
+   "isin": "LU1681045370",
+   "name": "Amundi MSCI Emerging Markets Swap UCITS ETF EUR Acc",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.2,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 4284
+  },
+  {
+   "isin": "IE00B5SSQT16",
+   "name": "HSBC MSCI Emerging Markets UCITS ETF USD",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.15,
+   "distribution": "distributing",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 3669
+  },
+  {
+   "isin": "LU0480132876",
+   "name": "UBS Core MSCI EM UCITS ETF USD dis",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.15,
+   "distribution": "distributing",
+   "replication": "optimized_sampling",
+   "domicile": "Luxembourg",
+   "fund_size_m_eur": 2839
+  },
+  {
+   "isin": "IE00B469F816",
+   "name": "State Street SPDR MSCI Emerging Markets UCITS ETF USD",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.18,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 1992
+  },
+  {
+   "isin": "IE000KCS7J59",
+   "name": "HSBC MSCI Emerging Markets UCITS ETF USD (Acc)",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.15,
+   "distribution": "accumulating",
+   "replication": "full_replication",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 1689
+  },
+  {
+   "isin": "IE00B3DWVS88",
+   "name": "Invesco MSCI Emerging Markets UCITS ETF",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.09,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 445
+  },
+  {
+   "isin": "IE000S3N6R34",
+   "name": "iShares MSCI EM Swap UCITS ETF USD (Acc)",
+   "index": "MSCI Emerging Markets",
+   "ter_percent": 0.14,
+   "distribution": "accumulating",
+   "replication": "swap",
+   "domicile": "Ireland",
+   "fund_size_m_eur": 233
+  }
+ ]
+}
