@@ -13,8 +13,8 @@ Self-hosted, built for a homelab.
 | 2 | Cashflow: income/expenses (monthly, quarterly, yearly), timeline, Sankey and charts | this branch |
 | 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | this branch |
 | 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | this branch |
-| 5 | Instrument search (ETF / private equity), costs, comparison, CSV import | planned |
-| 6 | Plan vs. actual, polish | planned |
+| 5 | Instrument search (ETF / private equity), costs, cost comparison | this branch |
+| 6 | Actual values, plan vs. actual, broker CSV import (Trade Republic), polish | planned |
 
 ## Design principles
 
@@ -82,6 +82,21 @@ Not covered yet: deleting a financing, scenarios with several interest paths.
 Not covered yet: tax, actual values (plan vs. actual), instrument search and cost comparison,
 CSV import, deleting positions.
 
+## Instrument catalog
+
+- Built-in reference data: 59 widely used UCITS ETFs (MSCI World, S&P 500, FTSE All-World, MSCI ACWI,
+  MSCI Emerging Markets) with TER, distribution policy, replication, domicile and fund size.
+  Source: justETF comparison tables, as of 2026-10 (`backend/src/kontor/data/etf_catalog.json`).
+  Costs and sizes change, so verify them with the provider before buying.
+- Search by name, ISIN or index with filters (index, distribution, replication, maximum TER) and sorting.
+- Households can add their own entries, e.g. private-equity funds. Only the household sees them.
+- **Cost comparison**: all selected funds get the same gross return and savings plan, so the difference in
+  final value comes from the TER alone.
+- "Adopt into the depot plan" prefills a new position (name, ISIN, TER). A position with a known ISIN can
+  take over the catalog's TER and jump to the comparison.
+
+Not covered yet: automatic data updates, tracking difference, live prices.
+
 ## Frontend
 
 React, Vite, TypeScript, Tailwind and Apache ECharts. Fonts are bundled locally (no external requests).
@@ -148,6 +163,9 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `POST /api/depot/instruments/{id}/rate` | New savings rate from a month on |
 | `POST /api/depot/instruments/{id}/one-offs`, `DELETE .../{one_off_id}` | Add / remove a one-off payment |
 | `GET /api/depot/projection?years=&start=&return_shift=&inflation=` | Month-by-month projection |
+| `GET /api/catalog?q=&index=&distribution=&replication=&max_ter=&sort=` | Search instruments |
+| `POST /api/catalog`, `DELETE /api/catalog/{id}` | Own catalog entries |
+| `GET /api/catalog/compare?ids=&monthly=&years=&expected_return=` | Cost comparison |
 
 ## Deployment (homelab)
 

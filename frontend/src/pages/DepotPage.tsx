@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 
 import { DepotChart } from '../components/DepotChart'
-import { AssumptionsForm, CorrectionForm, NewInstrumentForm, OneOffForm, RateForm } from '../components/DepotForms'
+import { AssumptionsForm, CorrectionForm, NewInstrumentForm, OneOffForm, RateForm, type Prefill } from '../components/DepotForms'
 import { input, primary } from '../components/ui'
+import { catalogApi } from '../catalogApi'
 import { depotApi, KIND_LABEL, type Instrument, type InstrumentDetail, type Rate } from '../depotApi'
 import { euro } from '../format'
 import { useMonth } from '../month'
@@ -141,7 +143,29 @@ function Detail({ instrument }: { instrument: Instrument }) {
     },
   })
   const d: InstrumentDetail | undefined = query.data
+  // a catalog entry with the same ISIN offers its TER and a way to compare with similar funds
+  const known = useQuery({
+    queryKey: ['catalog', 'by-isin', d?.isin],
+    queryFn: () => catalogApi.search({ q: d?.isin ?? '', index: '', distribution: '', replication: '', maxTer: '', sort: 'size', kind: '' }),
+    enabled: Boolean(d?.isin),
+    select: (r) => r.items.find((e) => e.isin === d?.isin),
+  })
+  const adoptCosts = useMutation({
+    mutationFn: (ter: number) =>
+      depotApi.update(instrument.id, {
+        name: d!.name,
+        isin: d!.isin,
+        expected_return_percent: String(d!.expected_return_percent),
+        cost_percent: String(ter),
+        entry_fee_percent: String(d!.entry_fee_percent),
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['depot'] })
+      await qc.invalidateQueries({ queryKey: ['cashflow'] })
+    },
+  })
   if (!d) return null
+  const entry = known.data
 
   return (
     <div className="mt-4 space-y-8 border-l-4 border-tinte/20 pl-4 sm:pl-6">
@@ -154,6 +178,25 @@ function Detail({ instrument }: { instrument: Instrument }) {
           value={`${String(d.cost_percent).replace('.', ',')} % pro Jahr${d.entry_fee_percent > 0 ? ` + ${String(d.entry_fee_percent).replace('.', ',')} % Aufschlag` : ''}`}
         />
       </div>
+
+      {entry && (
+        <p className="text-sm">
+          Im Katalog: {entry.name} mit {String(entry.ter_percent).replace('.', ',')} % TER.{' '}
+          {Math.abs(entry.ter_percent - d.cost_percent) > 0.0005 && (
+            <button
+              type="button"
+              disabled={adoptCosts.isPending}
+              onClick={() => adoptCosts.mutate(entry.ter_percent)}
+              className="font-medium text-elbe-dunkel hover:underline"
+            >
+              Kosten übernehmen
+            </button>
+          )}{' '}
+          <Link to={`/instrumente?compare=${entry.isin}&index=${encodeURIComponent(entry.index_name ?? '')}`} className="font-medium text-elbe-dunkel hover:underline">
+            Mit ähnlichen Fonds vergleichen
+          </Link>
+        </p>
+      )}
 
       <div>
         <h3 className="mb-2 text-lg">Sparrate</h3>
@@ -219,7 +262,8 @@ function Detail({ instrument }: { instrument: Instrument }) {
 
 export function DepotPage() {
   const overview = useQuery({ queryKey: ['depot', 'overview'], queryFn: depotApi.overview })
-  const [adding, setAdding] = useState(false)
+  const prefill = (useLocation().state as { prefill?: Prefill } | null)?.prefill
+  const [adding, setAdding] = useState(Boolean(prefill))
   const [open, setOpen] = useState<number | null>(null)
   const d = overview.data
   const gain = d ? d.planned_value - d.paid_in : 0
@@ -254,6 +298,7 @@ export function DepotPage() {
         {adding && (
           <div className="mb-8">
             <NewInstrumentForm
+              prefill={prefill}
               onDone={(created) => {
                 setAdding(false)
                 setOpen(created.id)

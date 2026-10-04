@@ -114,9 +114,16 @@ function AssumptionFields({ initial, kind }: { initial?: Partial<InstrumentDetai
   )
 }
 
-export function NewInstrumentForm({ onDone }: { onDone: (d: InstrumentDetail) => void }) {
+export interface Prefill {
+  kind: InstrumentKind
+  name: string
+  isin: string | null
+  cost_percent: number
+}
+
+export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentDetail) => void; prefill?: Prefill }) {
   const { current } = useMonth()
-  const [kind, setKind] = useState<InstrumentKind>('etf')
+  const [kind, setKind] = useState<InstrumentKind>(prefill?.kind ?? 'etf')
   const mutation = useDepotMutation((v: NewInstrument) => depotApi.create(v), onDone)
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -150,7 +157,7 @@ export function NewInstrumentForm({ onDone }: { onDone: (d: InstrumentDetail) =>
         </div>
       </fieldset>
       {/* remount when the kind changes so the suggested defaults follow */}
-      <AssumptionFields key={kind} kind={kind} />
+      <AssumptionFields key={kind} kind={kind} initial={prefill?.kind === kind ? prefill : undefined} />
       <label className="block text-sm">
         Startmonat
         <input name="start" type="month" required defaultValue={current} className={input} />

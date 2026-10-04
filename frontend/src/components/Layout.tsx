@@ -9,6 +9,7 @@ const NAV = [
   { to: '/', label: 'Cashflow', end: true },
   { to: '/finanzierungen', label: 'Finanzierungen' },
   { to: '/depot', label: 'Depot' },
+  { to: '/instrumente', label: 'Instrumente' },
 ]
 
 export function Layout() {

@@ -30,6 +30,8 @@ def test_search_by_name_isin_and_index(client: TestClient) -> None:
     everything = client.get("/api/catalog", params={"limit": 200}).json()
     assert everything["total"] >= 50
     assert "MSCI World" in everything["facets"]["indexes"]
+    isins = [e["isin"] for e in everything["items"]]
+    assert len(isins) == len(set(isins)), "reference data must be seeded exactly once"
 
     by_isin = client.get("/api/catalog", params={"q": "IE00B4L5Y983"}).json()
     assert [e["name"] for e in by_isin["items"]] == ["iShares Core MSCI World UCITS ETF USD (Acc)"]
