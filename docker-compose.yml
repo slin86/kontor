@@ -1,0 +1,31 @@
+# Homelab deployment: Postgres + API. Put your reverse proxy (TLS) in front of the API.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kontor
+      POSTGRES_USER: kontor
+      POSTGRES_PASSWORD: ${KONTOR_DB_PASSWORD:?set KONTOR_DB_PASSWORD in .env}
+    volumes:
+      - kontor-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kontor"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KONTOR_DATABASE_URL: postgresql+psycopg://kontor:${KONTOR_DB_PASSWORD}@db:5432/kontor
+      KONTOR_COOKIE_SECURE: ${KONTOR_COOKIE_SECURE:-true}
+    ports:
+      - "8000:8000"
+
+volumes:
+  kontor-db:
