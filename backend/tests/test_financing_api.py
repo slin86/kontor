@@ -341,3 +341,18 @@ def test_outlook_ignores_one_off_special_repayments(client: TestClient) -> None:
     # the actual month carries the special repayment, the outlook stays on the regular budget
     assert series["2027-10"]["financing"] > outlook["2027-10"]["financing"] + 9000
     assert outlook["2027-10"]["financing"] == pytest.approx(outlook["2027-09"]["financing"], abs=50)
+
+
+def test_delete_financing_removes_it_from_all_views(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, LOAN)
+    client.post(
+        f"/api/financings/{f['id']}/events",
+        json={"month": "2027-10", "kind": "special_repayment", "value": "1000"},
+    )
+    assert client.delete(f"/api/financings/{f['id']}").status_code == 204
+    assert client.get(f"/api/financings/{f['id']}").status_code == 404
+    assert client.get("/api/financings").json() == []
+    assert client.get("/api/cashflow/summary", params={"month": "2026-10"}).json()["financing"] == 0
+    assert any(e["action"] == "delete" for e in client.get("/api/audit").json())
+    assert client.delete(f"/api/financings/{f['id']}").status_code == 404

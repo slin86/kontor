@@ -188,6 +188,14 @@ def get_financing(financing_id: int, user: CurrentUser, db: DbSession) -> Financ
     return _detail(_get(db, user, financing_id))
 
 
+@router.delete("/{financing_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_financing(financing_id: int, user: CurrentUser, db: DbSession) -> None:
+    """Remove a contract entered by mistake. The audit log keeps its last state."""
+    f = _get(db, user, financing_id)
+    audit(db, user, "delete", "financing", f.id, before=_snapshot(f))
+    db.delete(f)
+
+
 @router.post("/{financing_id}/correct", response_model=FinancingDetailOut)
 def correct_financing(
     financing_id: int, body: FinancingCorrection, user: CurrentUser, db: DbSession

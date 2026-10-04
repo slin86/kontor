@@ -5,13 +5,21 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import delete, update
 from sqlalchemy.orm import Session
 
 from kontor.api.deps import CurrentUser, DbSession
 from kontor.core.clock import add_months, current_month, format_month
 from kontor.domain import cashflow as cf
 from kontor.domain import depot as dom
-from kontor.models import Instrument, InstrumentKind, OneOffPayment, SavingsRate
+from kontor.models import (
+    ActualValue,
+    DepotTransaction,
+    Instrument,
+    InstrumentKind,
+    OneOffPayment,
+    SavingsRate,
+)
 from kontor.schemas.depot import (
     Assumptions,
     DepotOut,
@@ -204,6 +212,27 @@ def update_assumptions(
     _check(i)
     audit(db, user, "update", "instrument", i.id, before=before, after=_snapshot(i))
     return _detail(i)
+
+
+@router.delete("/instruments/{instrument_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_instrument(instrument_id: int, user: CurrentUser, db: DbSession) -> None:
+    """Remove a position with its plan data and actual values. Transactions are kept, unlinked."""
+    i = _get(db, user, instrument_id)
+    audit(
+        db,
+        user,
+        "delete",
+        "instrument",
+        i.id,
+        before={**_snapshot(i), "rates": _rates_snapshot(i)},
+    )
+    db.execute(delete(ActualValue).where(ActualValue.instrument_id == i.id))
+    db.execute(
+        update(DepotTransaction)
+        .where(DepotTransaction.instrument_id == i.id)
+        .values(instrument_id=None)
+    )
+    db.delete(i)
 
 
 @router.post("/instruments/{instrument_id}/correct", response_model=InstrumentDetailOut)

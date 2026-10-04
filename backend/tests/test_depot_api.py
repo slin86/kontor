@@ -180,3 +180,13 @@ def test_empty_depot_projects_nothing(client: TestClient) -> None:
     _login(client)
     body = client.get("/api/depot/projection", params={"years": 1}).json()
     assert body["instruments"] == [] and body["points"][0]["value"] == 0
+
+
+def test_delete_position_keeps_the_audit_trail(client: TestClient) -> None:
+    _login(client)
+    i = _create(client, ETF)
+    assert client.delete(f"/api/depot/instruments/{i['id']}").status_code == 204
+    assert client.get(f"/api/depot/instruments/{i['id']}").status_code == 404
+    assert client.get("/api/depot").json()["instruments"] == []
+    entry = next(e for e in client.get("/api/audit").json() if e["action"] == "delete")
+    assert entry["before"]["name"] == "MSCI World"
