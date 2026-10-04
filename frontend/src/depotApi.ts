@@ -88,6 +88,7 @@ export const depotApi = {
   overview: () => api<Depot>('/depot'),
   get: (id: number) => api<InstrumentDetail>(`/depot/instruments/${id}`),
   create: (json: NewInstrument) => api<InstrumentDetail>('/depot/instruments', { method: 'POST', json }),
+  remove: (id: number) => api<void>(`/depot/instruments/${id}`, { method: 'DELETE' }),
   update: (id: number, json: Assumptions) => api<InstrumentDetail>(`/depot/instruments/${id}`, { method: 'PUT', json }),
   correct: (id: number, json: { start: string; start_value: string; reason: string }) =>
     api<InstrumentDetail>(`/depot/instruments/${id}/correct`, { method: 'POST', json }),

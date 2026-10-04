@@ -98,6 +98,7 @@ export const financingApi = {
   list: () => api<Financing[]>('/financings'),
   get: (id: number) => api<FinancingDetail>(`/financings/${id}`),
   create: (json: FinancingInput) => api<FinancingDetail>('/financings', { method: 'POST', json }),
+  remove: (id: number) => api<void>(`/financings/${id}`, { method: 'DELETE' }),
   correct: (id: number, json: { reason: string; data: FinancingInput }) =>
     api<FinancingDetail>(`/financings/${id}/correct`, { method: 'POST', json }),
   addEvent: (id: number, json: { month: string; kind: FinancingEvent['kind']; value: string }) =>

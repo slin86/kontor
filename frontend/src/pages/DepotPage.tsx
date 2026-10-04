@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
+import { ConfirmDelete } from '../components/ConfirmDelete'
 import { DepotChart } from '../components/DepotChart'
 import { AssumptionsForm, CorrectionForm, NewInstrumentForm, OneOffForm, RateForm, type Prefill } from '../components/DepotForms'
 import { input, primary } from '../components/ui'
@@ -164,6 +165,14 @@ function Detail({ instrument }: { instrument: Instrument }) {
       await qc.invalidateQueries({ queryKey: ['cashflow'] })
     },
   })
+  const drop = useMutation({
+    mutationFn: () => depotApi.remove(instrument.id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['depot'] })
+      await qc.invalidateQueries({ queryKey: ['actuals'] })
+      await qc.invalidateQueries({ queryKey: ['cashflow'] })
+    },
+  })
   if (!d) return null
   const entry = known.data
 
@@ -252,6 +261,15 @@ function Detail({ instrument }: { instrument: Instrument }) {
               Start und Startwert korrigieren
             </button>
           </div>
+        )}
+        {mode === 'view' && (
+          <ConfirmDelete
+            label="Position löschen"
+            question={`„${d.name}“ mit Plan und Ist-Werten löschen? Importierte Transaktionen bleiben erhalten.`}
+            pending={drop.isPending}
+            error={drop.error}
+            onConfirm={() => drop.mutate()}
+          />
         )}
         {mode === 'assumptions' && <AssumptionsForm detail={d} onDone={() => setMode('view')} />}
         {mode === 'correct' && <CorrectionForm detail={d} onDone={() => setMode('view')} />}

@@ -31,6 +31,12 @@ const ACTION_LABEL: Record<string, string> = {
   rate_change: 'Sparrate geändert',
   oneoff_add: 'Einmalzahlung hinzugefügt',
   oneoff_remove: 'Einmalzahlung entfernt',
+  actual_set: 'Ist-Wert erfasst',
+  actual_remove: 'Ist-Wert entfernt',
+  transaction_add: 'Transaktion erfasst',
+  transaction_remove: 'Transaktion entfernt',
+  import: 'Import',
+  delete: 'gelöscht',
 }
 
 function AuditList({ entries }: { entries: AuditEntry[] }) {

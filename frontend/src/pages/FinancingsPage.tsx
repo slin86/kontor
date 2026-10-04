@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { ConfirmDelete } from '../components/ConfirmDelete'
 import { CorrectionForm, EVENT_LABEL, EventForm, NewFinancingForm } from '../components/FinancingForms'
 import { OutlookView } from '../components/OutlookView'
 import { ScheduleView } from '../components/ScheduleView'
@@ -139,6 +140,13 @@ function Detail({ financing }: { financing: Financing }) {
       await qc.invalidateQueries({ queryKey: ['cashflow'] })
     },
   })
+  const drop = useMutation({
+    mutationFn: () => financingApi.remove(financing.id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['financings'] })
+      await qc.invalidateQueries({ queryKey: ['cashflow'] })
+    },
+  })
   const d: FinancingDetail | undefined = query.data
   if (!d) return null
 
@@ -194,13 +202,22 @@ function Detail({ financing }: { financing: Financing }) {
         <EventForm detail={d} />
       </div>
 
-      <div>
+      <div className="space-y-4">
         {correcting ? (
           <CorrectionForm detail={d} onDone={() => setCorrecting(false)} />
         ) : (
-          <button type="button" onClick={() => setCorrecting(true)} className="text-sm font-medium text-elbe-dunkel hover:underline">
-            Vertragsdaten korrigieren
-          </button>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <button type="button" onClick={() => setCorrecting(true)} className="text-sm font-medium text-elbe-dunkel hover:underline">
+              Vertragsdaten korrigieren
+            </button>
+            <ConfirmDelete
+              label="Finanzierung löschen"
+              question={`„${d.name}“ mit allen Ereignissen löschen? Cashflow und Prognose rechnen danach ohne sie.`}
+              pending={drop.isPending}
+              error={drop.error}
+              onConfirm={() => drop.mutate()}
+            />
+          </div>
         )}
       </div>
     </div>

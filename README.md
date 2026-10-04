@@ -14,7 +14,7 @@ Self-hosted, built for a homelab.
 | 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | this branch |
 | 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | this branch |
 | 5 | Instrument search (ETF / private equity), costs, cost comparison | this branch |
-| 6 | Actual values, plan vs. actual, broker CSV import (Trade Republic), polish | planned |
+| 6 | Actual values, plan vs. actual, broker CSV import (Trade Republic), deleting positions and financings | this branch |
 
 ## Design principles
 
@@ -97,6 +97,25 @@ CSV import, deleting positions.
 
 Not covered yet: automatic data updates, tracking difference, live prices.
 
+## Plan vs. actual and broker import
+
+- **Month-end values**: enter what a position was worth at the end of a month (up to the current month).
+  The current month can always be changed; overwriting a closed month needs a reason and is audited.
+- **Transactions**: buys, sells and dividends, entered by hand or imported. They feed the comparison of
+  planned and real net deposits per month.
+- **Comparison**: the plan is shown for the positions that have actual values (so both lines cover the same
+  money), per position with the deviation in euros and percent. Months where a tracked position has no
+  value show no actual point.
+- **CSV import** (built for Trade Republic's transaction export): upload, preview, optionally map unknown
+  ISINs to a position, then import. Only securities orders, savings plans and dividends are taken over;
+  other rows (card payments, deposits, interest, corporate actions) are counted and reported. Re-importing
+  a file is safe: rows are deduplicated by transaction id (or a stable hash when the file has none).
+  The parser accepts commas or semicolons, ISO or German dates and German or English number formats.
+  The real export format is not officially documented, so check the preview before importing.
+- Positions and financings can be deleted (audited). Transactions of a deleted position stay, unlinked.
+
+Not covered yet: tax, live prices, importing month-end values from a statement.
+
 ## Frontend
 
 React, Vite, TypeScript, Tailwind and Apache ECharts. Fonts are bundled locally (no external requests).
@@ -163,6 +182,11 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `POST /api/depot/instruments/{id}/rate` | New savings rate from a month on |
 | `POST /api/depot/instruments/{id}/one-offs`, `DELETE .../{one_off_id}` | Add / remove a one-off payment |
 | `GET /api/depot/projection?years=&start=&return_shift=&inflation=` | Month-by-month projection |
+| `PUT /api/actuals/values`, `GET /api/actuals/values`, `DELETE /api/actuals/values/{id}` | Month-end values |
+| `GET/POST /api/actuals/transactions`, `DELETE .../{id}` | Real buys, sells, dividends |
+| `POST /api/actuals/import/preview`, `POST /api/actuals/import` | Broker CSV import (JSON body with the file text) |
+| `GET /api/actuals/compare` | Plan vs. actual |
+| `DELETE /api/depot/instruments/{id}`, `DELETE /api/financings/{id}` | Delete (audited) |
 | `GET /api/catalog?q=&index=&distribution=&replication=&max_ter=&sort=` | Search instruments |
 | `POST /api/catalog`, `DELETE /api/catalog/{id}` | Own catalog entries |
 | `GET /api/catalog/compare?ids=&monthly=&years=&expected_return=` | Cost comparison |

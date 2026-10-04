@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
+import { ActualPage } from './pages/ActualPage'
 import { CashflowPage } from './pages/CashflowPage'
 import { DepotPage } from './pages/DepotPage'
 import { FinancingsPage } from './pages/FinancingsPage'
@@ -29,6 +30,7 @@ export default function App() {
         <Route index element={<CashflowPage />} />
         <Route path="finanzierungen" element={<FinancingsPage />} />
         <Route path="depot" element={<DepotPage />} />
+        <Route path="ist" element={<ActualPage />} />
         <Route path="instrumente" element={<InstrumentsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
