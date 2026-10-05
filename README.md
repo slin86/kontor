@@ -252,3 +252,38 @@ the proxy in front of it. If Postgres runs on the Docker host itself, use `host.
 CI starts the whole stack on every push against a throwaway Postgres and smoke-tests it through nginx. A
 separate job checks the migrations (up, down, up, model drift) against Postgres, because the unit tests
 run on SQLite.
+
+## Kubernetes and Argo CD
+
+Manifests live in `deploy/k8s` (Kustomize) and the Argo CD application in `deploy/argocd`.
+
+```
+deploy/k8s/base               namespace, config, API, web, ingress, migration job
+deploy/k8s/overlays/homelab   your host, issuer and image tags (edit this one)
+deploy/k8s/secret.example.yaml  how to create the database secret (not applied automatically)
+deploy/argocd/application.yaml  Argo CD Application (auto-sync, prune, self-heal)
+```
+
+First-time setup:
+
+1. Edit `deploy/k8s/overlays/homelab/kustomization.yaml`: host, TLS issuer, and the ingress class in
+   `base/ingress.yaml` if it is not `nginx`.
+2. Create the database and user (see Deployment above) and the secret with the connection string:
+   `kubectl create namespace kontor` and `kubectl -n kontor create secret generic kontor-db --from-literal=database-url='postgresql+psycopg://kontor:<password>@<host>:5432/kontor'`.
+   Sealed Secrets or External Secrets work as well, as long as the secret is named `kontor-db` with the key `database-url`.
+3. `kubectl apply -f deploy/argocd/application.yaml`.
+
+How it runs: the images are `ghcr.io/slin86/kontor-api` and `kontor-web`. Every push to `main` that touches
+application code builds both (workflow *Images*) and commits the new `sha-...` tag into the homelab overlay,
+which Argo CD then syncs. The API migrates the database in an Argo CD **PreSync** job, so the API pods start
+with a fixed command and never migrate concurrently. The API runs as a single replica (the login throttle
+keeps its counters in the process), as non-root with a read-only root file system; requests are a few MB
+and milli-CPUs.
+
+Notes:
+- Make the two packages public in GitHub (Packages, package settings), or add an `imagePullSecret`.
+- The *Images* workflow pushes the tag commit to `main`. With branch protection that blocks it, let the workflow
+  open a pull request instead, or use Argo CD Image Updater and drop the `release` job.
+- Without Argo CD, `kubectl apply -k deploy/k8s/overlays/homelab` works too (the migration job then runs
+  as a normal job; delete it before re-applying, as job specs are immutable).
+- CI renders and schema-checks the manifests on every push.

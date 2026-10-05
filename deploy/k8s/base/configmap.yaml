@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kontor-config
+data:
+  KONTOR_COOKIE_SECURE: "true"
+  KONTOR_TIMEZONE: Europe/Berlin
+  # The first household can always be created; further ones only when this is "true".
+  KONTOR_ALLOW_NEW_HOUSEHOLDS: "false"
+  KONTOR_CORS_ORIGINS: "[]"
