@@ -27,7 +27,7 @@ def upgrade() -> None:
             )
         )
     # Existing ETFs get the Teilfreistellung of equity funds; the user can change it per position.
-    op.execute("UPDATE instruments SET tax_exempt_percent = 30 WHERE kind = 'etf'")
+    op.execute("UPDATE instruments SET tax_exempt_percent = 30 WHERE kind = 'ETF'")
     op.create_table(
         "tax_settings",
         sa.Column("household_id", sa.Integer(), nullable=False),

@@ -217,10 +217,22 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 ## Deployment (homelab)
 
 ```bash
-cp .env.example .env   # set KONTOR_DB_PASSWORD
+cp .env.example .env   # set KONTOR_DB_PASSWORD to a long random value
 docker compose up -d --build
 ```
 
-The web UI is served on port 8080 and proxies `/api` to the API, which runs migrations on start.
-Put a TLS-terminating reverse proxy in front of `web` and keep `KONTOR_COOKIE_SECURE=true`. For a quick
-test over plain HTTP set `KONTOR_COOKIE_SECURE=false`, otherwise the browser drops the session cookie.
+Three containers: Postgres (volume `kontor-db`), the API (runs migrations on every start, non-root, with a
+health check) and nginx serving the UI on port 8080 (`KONTOR_PORT`) and proxying `/api`. The API container
+trusts the forwarding headers of the proxy in front of it.
+
+- **TLS**: put your reverse proxy (Traefik, Caddy, nginx proxy manager) in front of `web` and keep
+  `KONTOR_COOKIE_SECURE=true`. For a quick test over plain HTTP set it to `false`, otherwise the browser
+  drops the session cookie.
+- **Backup**: `scripts/backup.sh [dir]` writes a compressed `pg_dump`; the restore command is in the script.
+  Run it from cron and copy the files off the machine.
+- **Update**: `git pull && docker compose up -d --build`. Migrations are applied automatically.
+- **Registration is open**: anyone who can reach the UI can create a household. Do not expose it to the
+  internet without an access layer in front (VPN, SSO proxy or basic auth).
+
+CI builds and starts the whole stack on every push and smoke-tests it through nginx. A separate job checks
+the migrations (up, down, up, model drift) against real Postgres, because the unit tests run on SQLite.

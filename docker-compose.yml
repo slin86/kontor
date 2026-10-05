@@ -26,6 +26,7 @@ services:
       KONTOR_DATABASE_URL: postgresql+psycopg://kontor:${KONTOR_DB_PASSWORD}@db:5432/kontor
       KONTOR_COOKIE_SECURE: ${KONTOR_COOKIE_SECURE:-true}
       KONTOR_TIMEZONE: ${KONTOR_TIMEZONE:-Europe/Berlin}
+      KONTOR_CORS_ORIGINS: '[]'
     expose:
       - "8000"
 
@@ -33,9 +34,10 @@ services:
     build: ./frontend
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
-      - "8080:80"
+      - "${KONTOR_PORT:-8080}:80"
 
 volumes:
   kontor-db:
