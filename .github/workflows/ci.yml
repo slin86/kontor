@@ -66,18 +66,28 @@ jobs:
     # Builds both images and runs the whole stack through the web container.
     runs-on: ubuntu-latest
     env:
-      KONTOR_DB_PASSWORD: ci-password
+      KONTOR_DATABASE_URL: postgresql+psycopg://kontor:ci@host.docker.internal:5432/kontor
       KONTOR_COOKIE_SECURE: "false"
     steps:
       - uses: actions/checkout@v4
+      - name: Start Postgres on the host (stands in for the homelab's existing one)
+        run: |
+          docker run -d --name pg -p 5432:5432 -e POSTGRES_DB=kontor -e POSTGRES_USER=kontor \
+            -e POSTGRES_PASSWORD=ci postgres:17-alpine
+          until docker exec pg pg_isready -U kontor; do sleep 1; done
       - run: docker compose up -d --build --wait --wait-timeout 180
       - name: Smoke test through nginx
         run: |
           curl -fsS http://localhost:8080/api/health
           curl -fsS http://localhost:8080/ | grep -q '<div id="root"'
+          curl -fsS http://localhost:8080/api/auth/config
           curl -fsS -c jar -X POST http://localhost:8080/api/auth/register \
             -H 'content-type: application/json' \
             -d '{"email":"ci@example.com","password":"correct-horse-battery","display_name":"CI","household_name":"CI"}'
+          # a second household is refused while KONTOR_ALLOW_NEW_HOUSEHOLDS is false
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/auth/register \
+            -H 'content-type: application/json' \
+            -d '{"email":"b@example.com","password":"correct-horse-battery","display_name":"B","household_name":"B"}')" = 403
           csrf=$(awk '$6=="kontor_csrf"{print $7}' jar)
           curl -fsS -b jar http://localhost:8080/api/depot
           curl -fsS -b jar -X PUT http://localhost:8080/api/tax/settings \

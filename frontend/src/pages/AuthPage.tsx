@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 
+import { api } from '../api'
 import { useAuth } from '../auth'
 
 type Mode = 'login' | 'new-household' | 'join'
@@ -13,6 +15,9 @@ export function AuthPage() {
   const [mode, setMode] = useState<Mode>('login')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // the server may only accept invite codes (after the first household exists)
+  const config = useQuery({ queryKey: ['auth', 'config'], queryFn: () => api<{ new_households_allowed: boolean }>('/auth/config') })
+  const newAllowed = config.data?.new_households_allowed ?? true
 
   if (loading) return null
   if (me) return <Navigate to="/" replace />
@@ -56,9 +61,9 @@ export function AuthPage() {
           {(
             [
               ['login', 'Anmelden'],
-              ['new-household', 'Neuer Haushalt'],
+              ...(newAllowed ? [['new-household', 'Neuer Haushalt']] : []),
               ['join', 'Haushalt beitreten'],
-            ] as const
+            ] as [Mode, string][]
           ).map(([m, label]) => (
             <button
               key={m}

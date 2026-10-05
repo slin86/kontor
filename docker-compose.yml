@@ -1,32 +1,19 @@
-# Homelab deployment: Postgres, API and the web UI (nginx, port 8080).
-# Put your TLS-terminating reverse proxy in front of the `web` service.
+# Homelab deployment: API and web UI (nginx, port 8080). The database is an existing Postgres,
+# configured through KONTOR_DATABASE_URL in .env. Put your TLS-terminating reverse proxy in front
+# of the `web` service.
 services:
-  db:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: kontor
-      POSTGRES_USER: kontor
-      POSTGRES_PASSWORD: ${KONTOR_DB_PASSWORD:?set KONTOR_DB_PASSWORD in .env}
-    volumes:
-      - kontor-db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kontor"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   api:
     build: ./backend
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      KONTOR_DATABASE_URL: postgresql+psycopg://kontor:${KONTOR_DB_PASSWORD}@db:5432/kontor
+      KONTOR_DATABASE_URL: ${KONTOR_DATABASE_URL:?set KONTOR_DATABASE_URL in .env}
       KONTOR_COOKIE_SECURE: ${KONTOR_COOKIE_SECURE:-true}
       KONTOR_TIMEZONE: ${KONTOR_TIMEZONE:-Europe/Berlin}
+      KONTOR_ALLOW_NEW_HOUSEHOLDS: ${KONTOR_ALLOW_NEW_HOUSEHOLDS:-false}
       KONTOR_CORS_ORIGINS: '[]'
+    # Lets the URL point at a Postgres that runs on the Docker host: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "8000"
 
@@ -38,6 +25,3 @@ services:
         condition: service_healthy
     ports:
       - "${KONTOR_PORT:-8080}:80"
-
-volumes:
-  kontor-db:

@@ -216,23 +216,39 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 
 ## Deployment (homelab)
 
+Kontor uses a Postgres you already run, so no extra database container is started. Create a database
+and user once:
+
+```sql
+CREATE USER kontor WITH PASSWORD '<long random value>';
+CREATE DATABASE kontor OWNER kontor;
+```
+
 ```bash
-cp .env.example .env   # set KONTOR_DB_PASSWORD to a long random value
+cp .env.example .env   # set KONTOR_DATABASE_URL (host, password)
 docker compose up -d --build
 ```
 
-Three containers: Postgres (volume `kontor-db`), the API (runs migrations on every start, non-root, with a
-health check) and nginx serving the UI on port 8080 (`KONTOR_PORT`) and proxying `/api`. The API container
-trusts the forwarding headers of the proxy in front of it.
+Two small containers: the API (runs migrations on every start, non-root, with a health check) and nginx
+serving the UI on port 8080 (`KONTOR_PORT`) and proxying `/api`. The API trusts the forwarding headers of
+the proxy in front of it. If Postgres runs on the Docker host itself, use `host.docker.internal` as host
+(it is mapped in the compose file) and let Postgres listen on the Docker bridge address and accept it in
+`pg_hba.conf`.
 
 - **TLS**: put your reverse proxy (Traefik, Caddy, nginx proxy manager) in front of `web` and keep
   `KONTOR_COOKIE_SECURE=true`. For a quick test over plain HTTP set it to `false`, otherwise the browser
   drops the session cookie.
-- **Backup**: `scripts/backup.sh [dir]` writes a compressed `pg_dump`; the restore command is in the script.
-  Run it from cron and copy the files off the machine.
+- **Backup**: `scripts/backup.sh [dir]` writes a compressed `pg_dump` (needs `pg_dump` on the host); the
+  restore command is in the script. Run it from cron and copy the files off the machine.
 - **Update**: `git pull && docker compose up -d --build`. Migrations are applied automatically.
-- **Registration is open**: anyone who can reach the UI can create a household. Do not expose it to the
-  internet without an access layer in front (VPN, SSO proxy or basic auth).
+- **Who can sign up**: the very first household can always be created. After that
+  `KONTOR_ALLOW_NEW_HOUSEHOLDS=false` (the default) refuses new households; further family members join
+  with the household's invite code. Set it to `true` to allow anyone to create a household.
+- **Brute force**: five failed logins per e-mail address within 15 minutes, or 20 per client address
+  (also counting wrong invite codes), block further attempts with HTTP 429. The counters live in the API
+  process and reset on restart. The block also applies to the real owner of an attacked address, which is
+  an acceptable trade-off for a household tool.
 
-CI builds and starts the whole stack on every push and smoke-tests it through nginx. A separate job checks
-the migrations (up, down, up, model drift) against real Postgres, because the unit tests run on SQLite.
+CI starts the whole stack on every push against a throwaway Postgres and smoke-tests it through nginx. A
+separate job checks the migrations (up, down, up, model drift) against Postgres, because the unit tests
+run on SQLite.
