@@ -37,3 +37,11 @@ def client() -> Iterator[TestClient]:
     with TestClient(app) as c:
         yield c
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_throttles() -> None:
+    from kontor.api import auth
+
+    auth.by_email.clear()
+    auth.by_ip.clear()

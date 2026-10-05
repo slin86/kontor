@@ -24,8 +24,19 @@ const ACTION_LABEL: Record<string, string> = {
   backfill: 'rückwirkend angelegt',
   change: 'geändert',
   end: 'beendet',
-  update: 'umbenannt',
+  update: 'angepasst',
   correction: 'korrigiert',
+  event_add: 'Ereignis hinzugefügt',
+  event_remove: 'Ereignis entfernt',
+  rate_change: 'Sparrate geändert',
+  oneoff_add: 'Einmalzahlung hinzugefügt',
+  oneoff_remove: 'Einmalzahlung entfernt',
+  actual_set: 'Ist-Wert erfasst',
+  actual_remove: 'Ist-Wert entfernt',
+  transaction_add: 'Transaktion erfasst',
+  transaction_remove: 'Transaktion entfernt',
+  import: 'Import',
+  delete: 'gelöscht',
 }
 
 function AuditList({ entries }: { entries: AuditEntry[] }) {
@@ -35,7 +46,7 @@ function AuditList({ entries }: { entries: AuditEntry[] }) {
       {entries.map((e) => (
         <li key={e.id} className="py-2">
           <span className="font-medium">
-            {e.subject ?? (e.entity === 'category' ? 'Kategorie' : 'Posten')}: {e.entity === 'cashflow_version' ? 'Betrag ' : ''}
+            {e.subject ?? (e.entity === 'category' ? 'Kategorie' : 'Eintrag')}: {e.entity === 'cashflow_version' ? 'Betrag ' : ''}
             {ACTION_LABEL[e.action] ?? e.action}
           </span>
           <span className="text-tinte-weich">
@@ -117,6 +128,7 @@ export function CashflowPage() {
           <div className="flex flex-wrap gap-x-12 gap-y-4">
             <Figure label="Einnahmen pro Monat" value={euro(s.income)} />
             <Figure label="Ausgaben pro Monat" value={euro(s.expenses)} />
+            {s.financing > 0 && <Figure label="Finanzierungen pro Monat" value={euro(s.financing)} />}
             <Figure label={s.balance < 0 ? 'Fehlbetrag' : 'Übrig'} value={euro(s.balance)} tone={s.balance < 0 ? 'bad' : undefined} />
             {s.savings_rate !== null && <Figure label="Sparquote" value={percent(s.savings_rate)} />}
           </div>

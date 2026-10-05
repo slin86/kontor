@@ -11,10 +11,11 @@ Self-hosted, built for a homelab.
 |-------|-------|-------|
 | 1 | Backend skeleton, accounts (households with several members), Docker, CI | this branch |
 | 2 | Cashflow: income/expenses (monthly, quarterly, yearly), timeline, Sankey and charts | this branch |
-| 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | planned |
-| 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | planned |
-| 5 | Instrument search (ETF / private equity), costs, comparison, CSV import | planned |
-| 6 | Plan vs. actual, polish | planned |
+| 3 | Financings, building-society savings contracts (Bausparvertrag), loans, household budget forecast | this branch |
+| 4 | Depot plan: savings rates, dated rate changes, one-off payments, scenarios, history | this branch |
+| 5 | Instrument search (ETF / private equity), costs, cost comparison | this branch |
+| 6 | Actual values, plan vs. actual, broker CSV import (Trade Republic), deleting positions and financings | this branch |
+| 7 | Tax estimate for the depot projection (Abgeltungsteuer, Vorabpauschale, Teilfreistellung) | this branch |
 
 ## Design principles
 
@@ -46,6 +47,96 @@ Self-hosted, built for a homelab.
   surplus or shortfall), month series (also used for the outlook when items end) and expense shares.
 
 Not covered yet: correcting the *dates* of a version, deleting items, renaming/deleting categories in the UI.
+
+## Financings and budget outlook
+
+- **Loan** (real estate, car, consumer, ...): amount, annual rate, first month and either a fixed monthly
+  payment or an initial repayment percentage (payment = amount x (rate + repayment) / 12). Interest accrues
+  monthly on the remaining balance (annuity loan).
+- **Bausparvertrag**: saving phase (monthly contribution, interest credited each December, one-off
+  Abschlussgebuehr), allocation month, then a loan phase with its own rate and payment.
+- **Events** from the current month on: special repayment, payment change, rate change. Past events are
+  locked (409); contract data can be corrected with a reason and is audited.
+- The cashflow summary, Sankey (financings -> contract -> interest / principal / saving / fees) and series
+  include the financings automatically.
+- **Outlook** (`GET /api/outlook`): the free monthly budget (income - expenses - financings) for up to 50
+  years, with events for ending financings and items and optional yearly income/expense growth. One-off
+  special repayments are left out so the curve shows the regular budget.
+
+Not covered yet: deleting a financing, scenarios with several interest paths.
+
+## Depot plan
+
+- A **position** is an ETF or a private-equity holding with an expected annual return, running costs (TER),
+  an optional entry fee, a start month and the value it already has at the start.
+- Every position has its own **savings rate** (effective-dated like cashflow items: change from month X,
+  later planned changes are kept, 0 pauses saving) and **one-off payments** (deposits or withdrawals).
+  The **depot base rate** is the sum of all current rates.
+- Projection: each month the balance grows by `(1 + return - cost)^(1/12) - 1`, then the savings rate and
+  one-offs are added (minus the entry fee). It runs for up to 100 years and starts at the earliest
+  position, so the past is visible too. Withdrawals larger than the balance are rejected.
+- Scenarios shift every position's return by a number of percentage points; optional inflation shows
+  values in today's purchasing power.
+- Locking works as elsewhere: the plan for past months cannot be changed. Start month and start value can be
+  corrected with a reason; every change is in the audit log.
+
+Not covered yet: tax, actual values (plan vs. actual), instrument search and cost comparison,
+CSV import, deleting positions.
+
+## Instrument catalog
+
+- Built-in reference data: 59 widely used UCITS ETFs (MSCI World, S&P 500, FTSE All-World, MSCI ACWI,
+  MSCI Emerging Markets) with TER, distribution policy, replication, domicile and fund size.
+  Source: justETF comparison tables, as of 2026-10 (`backend/src/kontor/data/etf_catalog.json`).
+  Costs and sizes change, so verify them with the provider before buying.
+- Search by name, ISIN or index with filters (index, distribution, replication, maximum TER) and sorting.
+- Households can add their own entries, e.g. private-equity funds. Only the household sees them.
+- **Cost comparison**: all selected funds get the same gross return and savings plan, so the difference in
+  final value comes from the TER alone.
+- "Adopt into the depot plan" prefills a new position (name, ISIN, TER). A position with a known ISIN can
+  take over the catalog's TER and jump to the comparison.
+
+Not covered yet: automatic data updates, tracking difference, live prices.
+
+## Plan vs. actual and broker import
+
+- **Month-end values**: enter what a position was worth at the end of a month (up to the current month).
+  The current month can always be changed; overwriting a closed month needs a reason and is audited.
+- **Transactions**: buys, sells and dividends, entered by hand or imported. They feed the comparison of
+  planned and real net deposits per month.
+- **Comparison**: the plan is shown for the positions that have actual values (so both lines cover the same
+  money), per position with the deviation in euros and percent. Months where a tracked position has no
+  value show no actual point.
+- **CSV import** (built for Trade Republic's transaction export): upload, preview, optionally map unknown
+  ISINs to a position, then import. Only securities orders, savings plans and dividends are taken over;
+  other rows (card payments, deposits, interest, corporate actions) are counted and reported. Re-importing
+  a file is safe: rows are deduplicated by transaction id (or a stable hash when the file has none).
+  The parser accepts commas or semicolons, ISO or German dates and German or English number formats.
+  The real export format is not officially documented, so check the preview before importing.
+- Positions and financings can be deleted (audited). Transactions of a deleted position stay, unlinked.
+
+Not covered yet: live prices, importing month-end values from a statement.
+
+## Tax estimate
+
+The depot projection shows a second line, **after tax if everything were sold in that month**. It is an
+approximation of German capital gains tax, not tax advice. Rules and rates change, so check them.
+
+- **Rate**: 25 % plus 5.5 % solidarity surcharge (26.375 %). With church tax (8 % or 9 %) the base rate
+  drops to `25 % / (1 + 25 % * church rate)`, giving about 27.8 % or 28.0 %.
+- **Sparer-Pauschbetrag**: 1,000 euro per year (2,000 for couples), applied once per year to the whole depot.
+- **Teilfreistellung** per position: share of gains that is tax free (30 % equity funds, 15 % mixed funds,
+  0 % bond funds). Defaults: 30 for ETFs, 0 for private equity. Change it per position.
+- **Vorabpauschale** (accumulating funds): taxed each January for the previous year, as
+  `value * Basiszins * 70 %`, every purchase counting only for the months held, capped at the fund's real gain.
+  Basiszins: 2023 2.55 %, 2024 2.29 %, 2025 2.53 %, 2026 3.20 %, later years use your assumption (default 3.2 %).
+  The tax is assumed to be paid from outside the depot and is credited at sale, so gains are not taxed twice.
+- **Tax on sale**: gains minus the Vorabpauschalen already taxed, less Teilfreistellung and allowance.
+  Gains and losses of all positions are netted.
+
+Simplifications: planned withdrawals are not taxed individually, distributions are not modelled, no
+Verlustverrechnungstöpfe, no further income that uses up the allowance, tax on ETF-specific rules for
+special funds is not covered. Settings (church tax, allowance, Basiszins) are per household.
 
 ## Frontend
 
@@ -102,14 +193,62 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `GET /api/cashflow/summary` / `sankey` | Aggregates for one month |
 | `GET /api/cashflow/series?from=&to=` | Income, expenses and balance per month |
 | `GET /api/audit` | Audit log |
+| `GET/POST /api/financings` | List / create loans and Bauspar contracts |
+| `GET /api/financings/{id}` | Contract data, schedule and events |
+| `POST /api/financings/{id}/correct` | Correct contract data (reason required) |
+| `POST /api/financings/{id}/events`, `DELETE .../events/{event_id}` | Add / remove a dated event |
+| `GET /api/outlook?start=&years=&income_growth=&expense_growth=` | Budget outlook |
+| `GET /api/depot` | Base rate, planned value and all positions |
+| `POST /api/depot/instruments`, `GET/PUT .../{id}` | Create a position, read it, change its assumptions |
+| `POST /api/depot/instruments/{id}/correct` | Correct start month and value (reason required) |
+| `POST /api/depot/instruments/{id}/rate` | New savings rate from a month on |
+| `POST /api/depot/instruments/{id}/one-offs`, `DELETE .../{one_off_id}` | Add / remove a one-off payment |
+| `GET /api/depot/projection?years=&start=&return_shift=&inflation=` | Month-by-month projection incl. tax estimate |
+| `GET/PUT /api/tax/settings` | Church tax, allowance, assumed Basiszins |
+| `PUT /api/actuals/values`, `GET /api/actuals/values`, `DELETE /api/actuals/values/{id}` | Month-end values |
+| `GET/POST /api/actuals/transactions`, `DELETE .../{id}` | Real buys, sells, dividends |
+| `POST /api/actuals/import/preview`, `POST /api/actuals/import` | Broker CSV import (JSON body with the file text) |
+| `GET /api/actuals/compare` | Plan vs. actual |
+| `DELETE /api/depot/instruments/{id}`, `DELETE /api/financings/{id}` | Delete (audited) |
+| `GET /api/catalog?q=&index=&distribution=&replication=&max_ter=&sort=` | Search instruments |
+| `POST /api/catalog`, `DELETE /api/catalog/{id}` | Own catalog entries |
+| `GET /api/catalog/compare?ids=&monthly=&years=&expected_return=` | Cost comparison |
 
 ## Deployment (homelab)
 
+Kontor uses a Postgres you already run, so no extra database container is started. Create a database
+and user once:
+
+```sql
+CREATE USER kontor WITH PASSWORD '<long random value>';
+CREATE DATABASE kontor OWNER kontor;
+```
+
 ```bash
-cp .env.example .env   # set KONTOR_DB_PASSWORD
+cp .env.example .env   # set KONTOR_DATABASE_URL (host, password)
 docker compose up -d --build
 ```
 
-The web UI is served on port 8080 and proxies `/api` to the API, which runs migrations on start.
-Put a TLS-terminating reverse proxy in front of `web` and keep `KONTOR_COOKIE_SECURE=true`. For a quick
-test over plain HTTP set `KONTOR_COOKIE_SECURE=false`, otherwise the browser drops the session cookie.
+Two small containers: the API (runs migrations on every start, non-root, with a health check) and nginx
+serving the UI on port 8080 (`KONTOR_PORT`) and proxying `/api`. The API trusts the forwarding headers of
+the proxy in front of it. If Postgres runs on the Docker host itself, use `host.docker.internal` as host
+(it is mapped in the compose file) and let Postgres listen on the Docker bridge address and accept it in
+`pg_hba.conf`.
+
+- **TLS**: put your reverse proxy (Traefik, Caddy, nginx proxy manager) in front of `web` and keep
+  `KONTOR_COOKIE_SECURE=true`. For a quick test over plain HTTP set it to `false`, otherwise the browser
+  drops the session cookie.
+- **Backup**: `scripts/backup.sh [dir]` writes a compressed `pg_dump` (needs `pg_dump` on the host); the
+  restore command is in the script. Run it from cron and copy the files off the machine.
+- **Update**: `git pull && docker compose up -d --build`. Migrations are applied automatically.
+- **Who can sign up**: the very first household can always be created. After that
+  `KONTOR_ALLOW_NEW_HOUSEHOLDS=false` (the default) refuses new households; further family members join
+  with the household's invite code. Set it to `true` to allow anyone to create a household.
+- **Brute force**: five failed logins per e-mail address within 15 minutes, or 20 per client address
+  (also counting wrong invite codes), block further attempts with HTTP 429. The counters live in the API
+  process and reset on restart. The block also applies to the real owner of an attacked address, which is
+  an acceptable trade-off for a household tool.
+
+CI starts the whole stack on every push against a throwaway Postgres and smoke-tests it through nginx. A
+separate job checks the migrations (up, down, up, model drift) against Postgres, because the unit tests
+run on SQLite.

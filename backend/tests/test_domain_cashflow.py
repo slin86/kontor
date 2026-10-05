@@ -6,6 +6,7 @@ import pytest
 from kontor.domain.cashflow import (
     ActiveItem,
     CategoryInfo,
+    FinancingFlow,
     VersionSpec,
     active_version,
     apply_change,
@@ -129,3 +130,28 @@ def test_sankey_without_data_has_only_the_hub() -> None:
     s = build_sankey(CATS, [])
     assert [n.id for n in s.nodes] == ["hub"]
     assert s.links == []
+
+
+def test_financings_reduce_the_balance_and_appear_in_the_sankey() -> None:
+    items = [ActiveItem(1, "Netto", 1, D("4000")), ActiveItem(2, "Essen", 5, D("500"))]
+    flows = [
+        FinancingFlow(7, "Haus", interest=D("600"), principal=D("500")),
+        FinancingFlow(8, "Bausparer", saving=D("200"), fee=D("50")),
+        FinancingFlow(9, "Leer"),  # nothing due this month
+    ]
+    s = summarize(CATS, items, flows)
+    assert s.expenses == D("500.00")
+    assert s.financing == D("1350.00")
+    assert s.balance == D("2150.00")
+    assert [f.name for f in s.financing_flows] == ["Haus", "Bausparer"]
+
+    sk = build_sankey(CATS, items, flows)
+    ids = {n.id for n in sk.nodes}
+    assert {"financing", "financing:7", "financing:8", "purpose:interest", "purpose:saving"} <= ids
+    assert "financing:9" not in ids
+    interest = next(link for link in sk.links if link.target == "purpose:interest")
+    assert interest.source == "financing:7" and interest.value == D("600.00")
+    to_group = next(link for link in sk.links if link.target == "financing")
+    assert to_group.value == D("1350.00")
+    surplus = next(link for link in sk.links if link.target == "surplus")
+    assert surplus.value == D("2150.00")

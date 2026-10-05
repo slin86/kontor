@@ -5,10 +5,8 @@ import { cashflowApi, type Category, type Frequency, type Item } from '../cashfl
 import { FREQUENCY_LABEL } from '../format'
 import { useMonth } from '../month'
 import { addMonths } from '../monthUtils'
+import { input, primary, secondary } from './ui'
 
-const input = 'mt-1 w-full border border-tinte/30 bg-white/60 px-3 py-2 text-base focus:border-elbe focus:bg-white'
-const primary = 'bg-tinte px-4 py-2 font-medium text-karte hover:bg-elbe-dunkel disabled:opacity-60'
-const secondary = 'px-3 py-2 text-sm font-medium text-elbe-dunkel hover:underline'
 
 function useCashflowMutation<V>(fn: (v: V) => Promise<unknown>, onDone: () => void) {
   const qc = useQueryClient()

@@ -8,6 +8,8 @@ const COLORS = {
   income: '#2e7c86',
   hub: '#12263a',
   expense: '#b9a572',
+  financing: '#6d8aa0',
+  purpose: '#4f6b82',
   surplus: '#2e7c86',
   deficit: '#d2432f',
 }

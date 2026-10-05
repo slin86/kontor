@@ -1,4 +1,7 @@
+import pytest
 from fastapi.testclient import TestClient
+
+from kontor.core.config import get_settings
 
 PASSWORD = "correct-horse-battery"
 
@@ -116,3 +119,77 @@ def test_short_password_rejected(client: TestClient) -> None:
         },
     )
     assert r.status_code == 422
+
+
+def _closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = get_settings().model_copy(update={"allow_new_households": False})
+    monkeypatch.setattr("kontor.api.auth.get_settings", lambda: settings)
+
+
+def test_closed_registration_allows_first_household_then_only_invites(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _closed(monkeypatch)
+    assert client.get("/api/auth/config").json() == {"new_households_allowed": True}
+    first = _register(client)
+    assert client.get("/api/auth/config").json() == {"new_households_allowed": False}
+
+    other = TestClient(client.app)
+    r = other.post(
+        "/api/auth/register",
+        json={
+            "email": "x@example.com",
+            "password": PASSWORD,
+            "display_name": "X",
+            "household_name": "Zweiter",
+        },
+    )
+    assert r.status_code == 403
+    r = other.post(
+        "/api/auth/register",
+        json={
+            "email": "y@example.com",
+            "password": PASSWORD,
+            "display_name": "Y",
+            "invite_code": first["household"]["invite_code"],
+        },
+    )
+    assert r.status_code == 201
+
+
+def test_login_is_blocked_after_repeated_failures(client: TestClient) -> None:
+    _register(client)
+    bad = {"email": "nils@example.com", "password": "wrong-password-1"}
+    for _ in range(5):
+        assert client.post("/api/auth/login", json=bad).status_code == 401
+    r = client.post("/api/auth/login", json=bad)
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) > 0
+    # even the right password waits until the window is over
+    good = {"email": "nils@example.com", "password": PASSWORD}
+    assert client.post("/api/auth/login", json=good).status_code == 429
+    # other accounts are not affected by this e-mail's lock
+    assert client.post("/api/auth/login", json={**bad, "email": "x@example.com"}).status_code == 401
+
+
+def test_successful_login_resets_the_counter(client: TestClient) -> None:
+    _register(client)
+    bad = {"email": "nils@example.com", "password": "wrong-password-1"}
+    good = {"email": "nils@example.com", "password": PASSWORD}
+    for _ in range(4):
+        client.post("/api/auth/login", json=bad)
+    assert client.post("/api/auth/login", json=good).status_code == 200
+    for _ in range(4):
+        assert client.post("/api/auth/login", json=bad).status_code == 401
+
+
+def test_invite_code_guessing_is_throttled_per_address(client: TestClient) -> None:
+    body = {
+        "email": "z@example.com",
+        "password": PASSWORD,
+        "display_name": "Z",
+        "invite_code": "nope",
+    }
+    for _ in range(20):
+        assert client.post("/api/auth/register", json=body).status_code == 404
+    assert client.post("/api/auth/register", json=body).status_code == 429

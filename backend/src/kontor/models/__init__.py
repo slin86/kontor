@@ -1,6 +1,7 @@
 """ORM models. Import all modules here so Alembic sees the full metadata."""
 
 from kontor.models.account import AuthSession, Household, User
+from kontor.models.actuals import ActualValue, DepotTransaction
 from kontor.models.cashflow import (
     AuditLog,
     CashflowItem,
@@ -9,15 +10,29 @@ from kontor.models.cashflow import (
     CategoryKind,
     Frequency,
 )
+from kontor.models.catalog import CatalogEntry
+from kontor.models.depot import Instrument, InstrumentKind, OneOffPayment, SavingsRate, TaxSettings
+from kontor.models.financing import Financing, FinancingEvent, FinancingKind
 
 __all__ = [
+    "ActualValue",
     "AuditLog",
     "AuthSession",
     "CashflowItem",
     "CashflowVersion",
+    "CatalogEntry",
     "Category",
     "CategoryKind",
+    "DepotTransaction",
+    "Financing",
+    "FinancingEvent",
+    "FinancingKind",
     "Frequency",
     "Household",
+    "Instrument",
+    "InstrumentKind",
+    "OneOffPayment",
+    "SavingsRate",
+    "TaxSettings",
     "User",
 ]

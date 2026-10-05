@@ -3,8 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
+import { ActualPage } from './pages/ActualPage'
 import { CashflowPage } from './pages/CashflowPage'
-import { Placeholder } from './pages/Placeholder'
+import { DepotPage } from './pages/DepotPage'
+import { FinancingsPage } from './pages/FinancingsPage'
+import { InstrumentsPage } from './pages/InstrumentsPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { me, loading } = useAuth()
@@ -25,11 +28,10 @@ export default function App() {
         }
       >
         <Route index element={<CashflowPage />} />
-        <Route
-          path="finanzierungen"
-          element={<Placeholder title="Finanzierungen" text="Immobilienfinanzierungen, Bausparverträge und Kredite folgen in der nächsten Ausbaustufe." />}
-        />
-        <Route path="depot" element={<Placeholder title="Depot" text="Der Depotplan folgt in der nächsten Ausbaustufe." />} />
+        <Route path="finanzierungen" element={<FinancingsPage />} />
+        <Route path="depot" element={<DepotPage />} />
+        <Route path="ist" element={<ActualPage />} />
+        <Route path="instrumente" element={<InstrumentsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

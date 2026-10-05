@@ -1,11 +1,11 @@
 import { BarChart, LineChart, SankeyChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import type { EChartsCoreOption } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useRef } from 'react'
 
-echarts.use([SankeyChart, BarChart, LineChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
+echarts.use([SankeyChart, BarChart, LineChart, TooltipComponent, GridComponent, LegendComponent, MarkLineComponent, CanvasRenderer])
 
 /** Minimal ECharts wrapper: creates the chart once, updates options, resizes with its container. */
 export function EChart({ option, height, label }: { option: EChartsCoreOption; height: number; label: string }) {

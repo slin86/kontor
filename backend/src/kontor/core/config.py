@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     session_ttl_days: int = 30
     # Set to True when served over HTTPS (e.g. behind a reverse proxy in the homelab).
     cookie_secure: bool = False
+    # Creating a new household is always possible for the very first user. Afterwards it needs
+    # this flag; joining an existing household with its invite code stays possible.
+    allow_new_households: bool = True
+    login_max_failures: int = 5  # per e-mail address within the window
+    ip_max_failures: int = 20  # per client address (login and invite codes)
+    throttle_window_seconds: int = 900
     cors_origins: list[str] = ["http://localhost:5173"]
     # Used to decide which month is "now" (everything before it is locked history).
     timezone: str = "Europe/Berlin"
