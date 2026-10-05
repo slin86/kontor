@@ -255,35 +255,54 @@ run on SQLite.
 
 ## Kubernetes and Argo CD
 
-Manifests live in `deploy/k8s` (Kustomize) and the Argo CD application in `deploy/argocd`.
+Manifests live in `deploy/k8s` (Kustomize) and the Argo CD application in `deploy/argocd`. The layout and
+the secret handling follow the other homelab apps (Traefik, Infisical).
 
 ```
-deploy/k8s/base               namespace, config, API, web, ingress, migration job
-deploy/k8s/overlays/homelab   your host, issuer and image tags (edit this one)
-deploy/k8s/secret.example.yaml  how to create the database secret (not applied automatically)
-deploy/argocd/application.yaml  Argo CD Application (auto-sync, prune, self-heal)
+deploy/k8s/base                  namespace, config, InfisicalSecret, API, web
+deploy/k8s/overlays/homelab      ingress host and image tags (edit this one)
+deploy/argocd/application.yaml   Argo CD Application (auto-sync, prune, self-heal)
 ```
 
-First-time setup:
+**Secrets are kept in Infisical.** `base/infisical-secret.yaml` syncs the path `/kontor` (project
+`homelab-ei-fj`, environment `prod`, same machine identity as the other apps) into the Secret
+`kontor-secrets`, which the API reads as environment variables. Add these keys in Infisical:
 
-1. Edit `deploy/k8s/overlays/homelab/kustomization.yaml`: host, TLS issuer, and the ingress class in
-   `base/ingress.yaml` if it is not `nginx`.
-2. Create the database and user (see Deployment above) and the secret with the connection string:
-   `kubectl create namespace kontor` and `kubectl -n kontor create secret generic kontor-db --from-literal=database-url='postgresql+psycopg://kontor:<password>@<host>:5432/kontor'`.
-   Sealed Secrets or External Secrets work as well, as long as the secret is named `kontor-db` with the key `database-url`.
+| Key | Value |
+|---|---|
+| `KONTOR_DATABASE_URL` | `postgresql+psycopg://kontor:<password>@<postgres service>.<namespace>.svc.cluster.local:5432/kontor` (percent-encode special characters of the password, an at sign becomes `%40`) |
+
+Nothing else is required. Non-secret settings (cookie flag, time zone, whether new households may be created)
+are in `base/configmap.yaml`. The project slug and path are the first thing to change if you keep Kontor
+in a different Infisical project.
+
+**Database**: like the other apps, Kontor uses the shared PostgreSQL in the cluster with its own role and
+database. Create them once:
+
+```bash
+kubectl -n <postgres namespace> exec -it <postgres pod> -- psql -U postgres \
+  -c "CREATE ROLE kontor WITH LOGIN PASSWORD '<password from KONTOR_DATABASE_URL>';" \
+  -c "CREATE DATABASE kontor OWNER kontor;"
+kubectl -n <postgres namespace> exec -it <postgres pod> -- \
+  psql -U postgres -d kontor -c "GRANT ALL ON SCHEMA public TO kontor;"
+```
+
+**Setup**:
+
+1. Enter the secret in Infisical and create the database.
+2. Edit the host in `deploy/k8s/overlays/homelab/ingress.yaml` (default `kontor.home.lan`, Traefik,
+   internal only; add a public IngressRoute yourself if you ever want one).
 3. `kubectl apply -f deploy/argocd/application.yaml`.
 
-How it runs: the images are `ghcr.io/slin86/kontor-api` and `kontor-web`. Every push to `main` that touches
-application code builds both (workflow *Images*) and commits the new `sha-...` tag into the homelab overlay,
-which Argo CD then syncs. The API migrates the database in an Argo CD **PreSync** job, so the API pods start
-with a fixed command and never migrate concurrently. The API runs as a single replica (the login throttle
-keeps its counters in the process), as non-root with a read-only root file system; requests are a few MB
-and milli-CPUs.
+**How it runs**: the images are `ghcr.io/slin86/kontor-api` and `kontor-web`. Every push to `main` that
+touches application code builds both (workflow *Images*) and commits the new `sha-...` tag into the homelab
+overlay, which Argo CD then syncs. The API container migrates the database on start and runs as a single
+replica with the `Recreate` strategy (migrations, and the login throttle keeps its counters in the process),
+as non-root with a read-only root file system. Requests are a few MB and milli-CPUs. Until the Infisical
+operator has created the Secret, the API pod waits and retries by itself.
 
 Notes:
 - Make the two packages public in GitHub (Packages, package settings), or add an `imagePullSecret`.
 - The *Images* workflow pushes the tag commit to `main`. With branch protection that blocks it, let the workflow
-  open a pull request instead, or use Argo CD Image Updater and drop the `release` job.
-- Without Argo CD, `kubectl apply -k deploy/k8s/overlays/homelab` works too (the migration job then runs
-  as a normal job; delete it before re-applying, as job specs are immutable).
-- CI renders and schema-checks the manifests on every push.
+  open a pull request instead, or drop the `release` job and pin the tag by hand.
+- CI renders and schema-checks the manifests on every push (CRDs such as `InfisicalSecret` are skipped).

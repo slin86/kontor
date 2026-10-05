@@ -3,7 +3,8 @@ kind: Deployment
 metadata:
   name: kontor-api
 spec:
-  # One replica: the login throttle keeps its counters in the process.
+  # One replica with Recreate: the container migrates the database on start, and the login
+  # throttle keeps its counters in the process.
   replicas: 1
   strategy:
     type: Recreate
@@ -22,26 +23,15 @@ spec:
       containers:
         - name: api
           image: ghcr.io/slin86/kontor-api
-          # Migrations run in the PreSync job, not on start.
-          command:
-            - uvicorn
-            - kontor.main:app
-            - --host=0.0.0.0
-            - --port=8000
-            - --proxy-headers
-            - --forwarded-allow-ips=*
           ports:
             - name: http
               containerPort: 8000
           envFrom:
             - configMapRef:
                 name: kontor-config
-          env:
-            - name: KONTOR_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: kontor-db
-                  key: database-url
+            # KONTOR_DATABASE_URL comes from Infisical
+            - secretRef:
+                name: kontor-secrets
           readinessProbe:
             httpGet: {path: /api/health, port: http}
             periodSeconds: 10
