@@ -148,6 +148,7 @@ class GroupSummary:
     kind: str
     total: Decimal
     children: list["GroupSummary"]
+    direct: bool = False  # the part of a group booked on the group itself, next to sub-categories
 
 
 @dataclass(frozen=True)
@@ -179,6 +180,12 @@ def summarize(
             for cid in child_ids
             if totals[cid] != 0
         ]
+        if children and totals[top.id] != 0:
+            children.append(
+                GroupSummary(
+                    top.id, "Ohne Unterkategorie", top.kind, cents(totals[top.id]), [], True
+                )
+            )
         total = totals[top.id] + sum((totals[cid] for cid in child_ids), Decimal())
         return GroupSummary(top.id, top.name, top.kind, cents(total), children)
 
@@ -255,7 +262,7 @@ def build_sankey(
         nodes.append(SankeyNode(nid, g.name, "expense"))
         links.append(SankeyLink(HUB_ID, nid, g.total))
         for child in g.children:
-            cid = f"expense:{child.category_id}"
+            cid = f"expense:{child.category_id}" + (":direct" if child.direct else "")
             nodes.append(SankeyNode(cid, child.name, "expense"))
             links.append(SankeyLink(nid, cid, child.total))
 

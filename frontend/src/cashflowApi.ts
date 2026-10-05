@@ -8,6 +8,8 @@ export interface Category {
   name: string
   kind: Kind
   parent_id: number | null
+  item_count: number
+  sort_order: number
 }
 
 export interface Version {
@@ -36,6 +38,7 @@ export interface Group {
   kind: Kind
   total: number
   children: Group[]
+  direct?: boolean
 }
 
 export interface FinancingFlow {
@@ -93,6 +96,14 @@ export interface AuditEntry {
 
 export const cashflowApi = {
   categories: () => api<Category[]>('/categories'),
+  createCategory: (json: { name: string; kind: Kind; parent_id: number | null }) =>
+    api<Category>('/categories', { method: 'POST', json }),
+  updateCategory: (id: number, json: { name: string; parent_id: number | null }) =>
+    api<Category>(`/categories/${id}`, { method: 'PUT', json }),
+  moveCategory: (id: number, direction: 'up' | 'down') =>
+    api<Category[]>(`/categories/${id}/move`, { method: 'POST', json: { direction } }),
+  deleteCategory: (id: number, moveTo: number | null) =>
+    api<void>(`/categories/${id}${moveTo === null ? '' : `?move_to=${moveTo}`}`, { method: 'DELETE' }),
   items: (month: string) => api<Item[]>(`/cashflow/items?month=${month}`),
   summary: (month: string) => api<Summary>(`/cashflow/summary?month=${month}`),
   sankey: (month: string) => api<Sankey>(`/cashflow/sankey?month=${month}`),

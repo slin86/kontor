@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { cashflowApi, type AuditEntry, type Item } from '../cashflowApi'
 import { GroupBars } from '../components/GroupBars'
@@ -25,6 +26,7 @@ const ACTION_LABEL: Record<string, string> = {
   change: 'geändert',
   end: 'beendet',
   update: 'angepasst',
+  move: 'verschoben',
   correction: 'korrigiert',
   event_add: 'Ereignis hinzugefügt',
   event_remove: 'Ereignis entfernt',
@@ -174,8 +176,11 @@ export function CashflowPage() {
           <h2 id="posten" className="text-xl">
             Posten im {monthLabel(selected)}
           </h2>
+          <Link to="/kategorien" className="ml-auto text-sm font-medium text-elbe-dunkel hover:underline">
+            Kategorien verwalten
+          </Link>
           {!adding && (
-            <button type="button" onClick={() => setAdding(true)} className="ml-auto bg-tinte px-4 py-2 text-sm font-medium text-karte hover:bg-elbe-dunkel">
+            <button type="button" onClick={() => setAdding(true)} className="bg-tinte px-4 py-2 text-sm font-medium text-karte hover:bg-elbe-dunkel">
               Posten hinzufügen
             </button>
           )}

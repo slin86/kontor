@@ -220,7 +220,8 @@ def test_summary_and_sankey_for_a_month(client: TestClient) -> None:
     assert s["savings_rate"] == pytest.approx(0.4667, abs=1e-4)
     wohnen = next(g for g in s["expense_groups"] if g["name"] == "Wohnen")
     assert wohnen["total"] == 1100
-    assert [c["name"] for c in wohnen["children"]] == ["Strom und Gas"]
+    assert [c["name"] for c in wohnen["children"]] == ["Strom und Gas", "Ohne Unterkategorie"]
+    assert [c["total"] for c in wohnen["children"]] == [100, 1000]
 
     sk = client.get("/api/cashflow/sankey", params={"month": "2026-10"}).json()
     ids = {n["id"] for n in sk["nodes"]}

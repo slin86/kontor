@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from kontor.api.deps import CurrentUser, DbSession
@@ -16,12 +16,15 @@ from kontor.models import (
     CashflowItem,
     CashflowVersion,
     Category,
+    CategoryKind,
     User,
 )
 from kontor.schemas.cashflow import (
     AuditOut,
     CategoryIn,
+    CategoryMove,
     CategoryOut,
+    CategoryUpdate,
     FinancingFlowOut,
     GroupOut,
     ItemChange,
@@ -208,33 +211,161 @@ def _require_open(effective: date) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def _category_out(c: Category, item_count: int = 0) -> CategoryOut:
+    return CategoryOut(
+        id=c.id,
+        name=c.name,
+        kind=c.kind,
+        parent_id=c.parent_id,
+        item_count=item_count,
+        sort_order=c.sort_order,
+    )
+
+
+def _check_parent(
+    db: Session, household_id: int, cat: Category | None, kind: CategoryKind, parent_id: int | None
+) -> None:
+    """A category sits at most two levels deep and under a group of the same kind."""
+    if parent_id is None:
+        return
+    parent = _category_or_422(db, household_id, parent_id)
+    if parent.parent_id is not None:
+        raise HTTPException(422, "Kategorien haben höchstens zwei Ebenen")
+    if parent.kind != kind:
+        raise HTTPException(422, "Unterkategorie und Oberkategorie müssen dieselbe Art haben")
+    if cat is not None:
+        if parent.id == cat.id:
+            raise HTTPException(422, "Eine Kategorie kann nicht ihre eigene Oberkategorie sein")
+        has_children = db.scalar(
+            select(func.count(Category.id)).where(Category.parent_id == cat.id)
+        )
+        if has_children:
+            raise HTTPException(
+                422, "Eine Gruppe mit Unterkategorien kann nicht selbst Unterkategorie werden"
+            )
+
+
+def _siblings(db: Session, cat: Category) -> list[Category]:
+    return [
+        c
+        for c in _categories(db, cat.household_id)
+        if c.parent_id == cat.parent_id and c.kind == cat.kind
+    ]
+
+
 @router.get("/categories", response_model=list[CategoryOut])
 def list_categories(user: CurrentUser, db: DbSession) -> list[CategoryOut]:
-    return [
-        CategoryOut(id=c.id, name=c.name, kind=c.kind, parent_id=c.parent_id)
-        for c in _categories(db, user.household_id)
-    ]
+    rows = db.execute(
+        select(CashflowItem.category_id, func.count(CashflowItem.id))
+        .where(CashflowItem.household_id == user.household_id)
+        .group_by(CashflowItem.category_id)
+    ).all()
+    counts = {category_id: n for category_id, n in rows}
+    return [_category_out(c, counts.get(c.id, 0)) for c in _categories(db, user.household_id)]
 
 
 @router.post("/categories", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
 def create_category(body: CategoryIn, user: CurrentUser, db: DbSession) -> CategoryOut:
-    if body.parent_id is not None:
-        parent = _category_or_422(db, user.household_id, body.parent_id)
-        if parent.parent_id is not None:
-            raise HTTPException(422, "Kategorien haben höchstens zwei Ebenen")
-        if parent.kind != body.kind:
-            raise HTTPException(422, "Unterkategorie und Oberkategorie müssen dieselbe Art haben")
+    _check_parent(db, user.household_id, None, body.kind, body.parent_id)
+    last = max((c.sort_order for c in _categories(db, user.household_id)), default=0)
     cat = Category(
         household_id=user.household_id,
         parent_id=body.parent_id,
         name=body.name.strip(),
         kind=body.kind,
-        sort_order=10_000,
+        sort_order=last + 1,
     )
     db.add(cat)
     db.flush()
     _audit(db, user, "create", "category", cat.id, after={"name": cat.name})
-    return CategoryOut(id=cat.id, name=cat.name, kind=cat.kind, parent_id=cat.parent_id)
+    return _category_out(cat)
+
+
+@router.put("/categories/{category_id}", response_model=CategoryOut)
+def update_category(
+    category_id: int, body: CategoryUpdate, user: CurrentUser, db: DbSession
+) -> CategoryOut:
+    """Rename a category or move it under another group (or back to the top level)."""
+    cat = _category_or_422(db, user.household_id, category_id)
+    _check_parent(db, user.household_id, cat, cat.kind, body.parent_id)
+    before = {"name": cat.name, "parent_id": cat.parent_id}
+    cat.name = body.name.strip()
+    cat.parent_id = body.parent_id
+    if before["parent_id"] != body.parent_id:
+        cat.sort_order = (
+            max((c.sort_order for c in _categories(db, user.household_id)), default=0) + 1
+        )
+    db.flush()
+    _audit(
+        db,
+        user,
+        "update",
+        "category",
+        cat.id,
+        before=before,
+        after={"name": cat.name, "parent_id": cat.parent_id},
+    )
+    return _category_out(cat)
+
+
+@router.post("/categories/{category_id}/move", response_model=list[CategoryOut])
+def move_category(
+    category_id: int, body: CategoryMove, user: CurrentUser, db: DbSession
+) -> list[CategoryOut]:
+    """Swap the position with the neighbouring category of the same level and kind."""
+    cat = _category_or_422(db, user.household_id, category_id)
+    siblings = _siblings(db, cat)
+    index = next(i for i, c in enumerate(siblings) if c.id == cat.id)
+    other = index - 1 if body.direction == "up" else index + 1
+    if 0 <= other < len(siblings):
+        slots = sorted(c.sort_order for c in siblings)
+        if len(set(slots)) != len(slots):  # ties from older data: number the siblings afresh
+            slots = list(range(len(slots)))
+        siblings[index], siblings[other] = siblings[other], siblings[index]
+        for slot, c in zip(slots, siblings, strict=True):
+            c.sort_order = slot
+        db.flush()
+        _audit(db, user, "move", "category", cat.id, after={"direction": body.direction})
+    return list_categories(user, db)
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(
+    category_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    move_to: Annotated[int | None, Query(description="Category that takes over the items")] = None,
+) -> None:
+    """Delete an empty category, or hand its items to ``move_to`` first."""
+    cat = _category_or_422(db, user.household_id, category_id)
+    if db.scalar(select(func.count(Category.id)).where(Category.parent_id == cat.id)):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Die Kategorie hat Unterkategorien. Verschiebe oder lösche sie zuerst.",
+        )
+    items = list(db.scalars(select(CashflowItem.id).where(CashflowItem.category_id == cat.id)))
+    if items:
+        if move_to is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Es hängen noch {len(items)} Posten an der Kategorie. Wähle eine Zielkategorie.",
+            )
+        target = _category_or_422(db, user.household_id, move_to)
+        if target.id == cat.id or target.kind != cat.kind:
+            raise HTTPException(422, "Die Zielkategorie muss eine andere derselben Art sein.")
+        db.execute(
+            update(CashflowItem).where(CashflowItem.id.in_(items)).values(category_id=target.id)
+        )
+    _audit(
+        db,
+        user,
+        "delete",
+        "category",
+        cat.id,
+        before={"name": cat.name, "parent_id": cat.parent_id},
+        after={"moved_items": len(items), "move_to": move_to} if items else None,
+    )
+    db.delete(cat)
 
 
 # --------------------------------------------------------------------------------------
@@ -392,6 +523,7 @@ def _group_out(g: dom.GroupSummary) -> GroupOut:
         kind=g.kind,
         total=float(g.total),
         children=[_group_out(c) for c in g.children],
+        direct=g.direct,
     )
 
 
