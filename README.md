@@ -302,7 +302,9 @@ as non-root with a read-only root file system. Requests are a few MB and milli-C
 operator has created the Secret, the API pod waits and retries by itself.
 
 Notes:
-- Make the two packages public in GitHub (Packages, package settings), or add an `imagePullSecret`.
+- The images are meant to be public, so the cluster pulls them without a pull secret. Both Dockerfiles carry the
+  `org.opencontainers.image.source` label, which links the packages to this repository. If GitHub still creates a
+  package as private on its first push, set it to public once under Packages, Package settings, Danger zone.
 - The *Images* workflow pushes the tag commit to `main`. With branch protection that blocks it, let the workflow
   open a pull request instead, or drop the `release` job and pin the tag by hand.
 - CI renders and schema-checks the manifests on every push (CRDs such as `InfisicalSecret` are skipped).
