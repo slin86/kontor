@@ -1,12 +1,9 @@
-# Internal only, like the other homelab apps behind Traefik. A finance tool should not get a public
-# IngressRoute; add one next to this file only if you really want that.
+# Internal-only ingress, same style as the other *.home.lan apps: no entrypoint annotations,
+# so Traefik serves it on every entrypoint (plain HTTP on port 80 included).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: kontor
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
   rules:
