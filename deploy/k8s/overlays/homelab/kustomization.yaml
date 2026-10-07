@@ -9,7 +9,7 @@ resources:
 images:
 - name: ghcr.io/slin86/kontor-api
   newName: ghcr.io/slin86/kontor-api
-  newTag: sha-a5e9a35
+  newTag: sha-2d960ab
 - name: ghcr.io/slin86/kontor-web
   newName: ghcr.io/slin86/kontor-web
-  newTag: sha-a5e9a35
+  newTag: sha-2d960ab
