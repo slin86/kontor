@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
 import { ActualPage } from './pages/ActualPage'
 import { CashflowPage } from './pages/CashflowPage'
+import { CategoriesPage } from './pages/CategoriesPage'
 import { DepotPage } from './pages/DepotPage'
 import { FinancingsPage } from './pages/FinancingsPage'
 import { InstrumentsPage } from './pages/InstrumentsPage'
@@ -28,6 +29,7 @@ export default function App() {
         }
       >
         <Route index element={<CashflowPage />} />
+        <Route path="kategorien" element={<CategoriesPage />} />
         <Route path="finanzierungen" element={<FinancingsPage />} />
         <Route path="depot" element={<DepotPage />} />
         <Route path="ist" element={<ActualPage />} />

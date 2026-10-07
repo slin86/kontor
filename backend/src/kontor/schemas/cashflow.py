@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer
 
@@ -39,6 +39,17 @@ class CategoryOut(BaseModel):
     name: str
     kind: CategoryKind
     parent_id: int | None
+    item_count: int = 0  # items booked directly on this category
+    sort_order: int = 0
+
+
+class CategoryUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    parent_id: int | None = None  # ``None`` makes it a top-level group
+
+
+class CategoryMove(BaseModel):
+    direction: Literal["up", "down"]
 
 
 class VersionOut(BaseModel):
@@ -96,6 +107,7 @@ class GroupOut(BaseModel):
     kind: CategoryKind
     total: float
     children: list["GroupOut"]
+    direct: bool = False  # amount booked on the group itself, shown next to its sub-categories
 
 
 class FinancingFlowOut(BaseModel):

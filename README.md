@@ -35,6 +35,10 @@ Self-hosted, built for a homelab.
 ## Cashflow
 
 - Categories form a two-level tree per household; a default German set is created on registration.
+  The **Categories** page (link on the cashflow page) creates, renames, reorders and moves them between
+  groups and deletes them. A category with items needs a target that takes the items over; a group with
+  sub-categories cannot be deleted before they are moved or removed. Changes are audited and never touch
+  amounts. Items booked directly on a group that also has sub-categories show up as "Ohne Unterkategorie".
 - An item (e.g. "Rent") has **versions**: amount and frequency (monthly, quarterly, yearly) valid from a
   month up to, but excluding, another month. Amounts are normalised to a monthly equivalent.
 - **Change from month X**: cuts the version covering X and starts a new one; already planned later
@@ -46,7 +50,7 @@ Self-hosted, built for a homelab.
 - Views: monthly summary, Sankey (income sources -> household -> expense groups -> sub-categories, plus
   surplus or shortfall), month series (also used for the outlook when items end) and expense shares.
 
-Not covered yet: correcting the *dates* of a version, deleting items, renaming/deleting categories in the UI.
+Not covered yet: correcting the *dates* of a version, deleting items.
 
 ## Financings and budget outlook
 
@@ -184,7 +188,7 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET/POST /api/categories` | List / create categories |
+| `GET/POST /api/categories`, `PUT/DELETE /api/categories/{id}`, `POST .../{id}/move` | List, create, rename or move, delete (`?move_to=`), reorder categories |
 | `GET /api/cashflow/items?month=YYYY-MM` | Items valid in a month (`include_inactive=true` for all) |
 | `POST /api/cashflow/items` | Create an item (a start in a closed month is logged as backfill) |
 | `POST /api/cashflow/items/{id}/change` | New amount from a month on |
