@@ -14,7 +14,8 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 RUN useradd --system --uid 10001 --no-create-home kontor
-USER kontor
+# numeric, so Kubernetes can verify runAsNonRoot
+USER 10001
 
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
