@@ -321,6 +321,11 @@ export function DepotPage() {
 
         {adding && (
           <div className="mb-8">
+            {prefill && (
+              <Link to="/instrumente" className="mb-3 inline-block text-sm font-medium text-elbe-dunkel hover:underline">
+                ← Zurück zu den Instrumenten
+              </Link>
+            )}
             <NewInstrumentForm
               prefill={prefill}
               onDone={(created) => {
