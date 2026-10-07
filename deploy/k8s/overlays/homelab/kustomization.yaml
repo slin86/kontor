@@ -1,0 +1,13 @@
+# Your environment. Adjust the host in ingress.yaml, then let Argo CD sync it.
+# CI updates the image tags below after each build of `main`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kontor
+resources:
+  - ../../base
+  - ingress.yaml
+images:
+  - name: ghcr.io/slin86/kontor-api
+    newTag: latest
+  - name: ghcr.io/slin86/kontor-web
+    newTag: latest

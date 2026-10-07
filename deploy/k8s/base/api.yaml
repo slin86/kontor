@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kontor-api
+spec:
+  # One replica with Recreate: the container migrates the database on start, and the login
+  # throttle keeps its counters in the process.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/slin86/kontor-api
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: kontor-config
+            # KONTOR_DATABASE_URL comes from Infisical
+            - secretRef:
+                name: kontor-secrets
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 25m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kontor-api
+spec:
+  selector:
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

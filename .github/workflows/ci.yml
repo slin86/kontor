@@ -95,3 +95,15 @@ jobs:
             -d '{"church_tax_percent":0}'
       - if: failure()
         run: docker compose logs --no-color
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kustomize and kubeconform
+        run: |
+          curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
+      - run: kustomize build deploy/k8s/base | kubeconform -strict -summary -ignore-missing-schemas
+      - run: kustomize build deploy/k8s/overlays/homelab | kubeconform -strict -summary -ignore-missing-schemas
+      - run: kubeconform -strict -summary -ignore-missing-schemas deploy/argocd/application.yaml 
