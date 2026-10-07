@@ -356,3 +356,70 @@ def test_delete_financing_removes_it_from_all_views(client: TestClient) -> None:
     assert client.get("/api/cashflow/summary", params={"month": "2026-10"}).json()["financing"] == 0
     assert any(e["action"] == "delete" for e in client.get("/api/audit").json())
     assert client.delete(f"/api/financings/{f['id']}").status_code == 404
+
+
+CREDIT_LINE = {
+    "kind": "credit_line",
+    "name": "Rahmenkredit",
+    "limit": "20000",
+    "balance": "10000",
+    "annual_rate_percent": "6",
+    "monthly_payment": "500",
+    "start": "2026-10",
+}
+
+
+def test_credit_line_shows_limit_and_what_is_still_available(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, CREDIT_LINE)
+    assert f["kind"] == "credit_line"
+    assert f["credit_limit"] == 20000
+    assert f["remaining_debt"] == 10000
+    assert f["available"] == 10000
+    assert f["regular_payment"] == 500
+
+
+def test_credit_line_deposit_withdrawal_and_rate_change(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, CREDIT_LINE)
+    url = f"/api/financings/{f['id']}/events"
+    r = client.post(url, json={"month": "2026-12", "kind": "drawdown", "value": "4000"})
+    assert r.status_code == 200, r.text
+    row = next(x for x in r.json()["schedule"] if x["month"] == "2026-12")
+    assert row["drawn"] == 4000
+    assert (
+        client.post(
+            url, json={"month": "2027-02", "kind": "special_repayment", "value": "1000"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            url, json={"month": "2027-03", "kind": "payment_change", "value": "700"}
+        ).status_code
+        == 200
+    )
+    # the limit is a hard ceiling for everything that is drawn at one time
+    over = client.post(url, json={"month": "2026-12", "kind": "drawdown", "value": "9000"})
+    assert over.status_code == 422
+    assert "Rahmen" in over.json()["detail"]
+
+
+def test_credit_line_cannot_start_above_its_limit(client: TestClient) -> None:
+    _login(client)
+    r = client.post("/api/financings", json={**CREDIT_LINE, "balance": "25000"})
+    assert r.status_code == 422
+
+
+def test_drawdown_is_not_a_cashflow_outflow(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, CREDIT_LINE)
+    client.post(
+        f"/api/financings/{f['id']}/events",
+        json={"month": "2026-12", "kind": "drawdown", "value": "4000"},
+    )
+    summary = client.get("/api/cashflow/summary?month=2026-12").json()
+    assert (
+        summary["financing"] == 500 or summary["financing"] > 0
+    )  # interest + repayment only, no negative flow
+    assert summary["financing"] < 1000
