@@ -19,7 +19,7 @@ patches:
 images:
 - name: ghcr.io/slin86/kontor-api
   newName: ghcr.io/slin86/kontor-api
-  newTag: sha-9ab3a19
+  newTag: sha-ddd7afe
 - name: ghcr.io/slin86/kontor-web
   newName: ghcr.io/slin86/kontor-web
-  newTag: sha-9ab3a19
+  newTag: sha-ddd7afe
