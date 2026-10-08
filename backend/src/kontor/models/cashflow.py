@@ -23,11 +23,12 @@ class CategoryKind(enum.StrEnum):
 class Frequency(enum.StrEnum):
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
+    SEMIANNUAL = "semiannual"
     YEARLY = "yearly"
 
     @property
     def months(self) -> int:
-        return {"monthly": 1, "quarterly": 3, "yearly": 12}[self.value]
+        return {"monthly": 1, "quarterly": 3, "semiannual": 6, "yearly": 12}[self.value]
 
 
 class Category(Base):

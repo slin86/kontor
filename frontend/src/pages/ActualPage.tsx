@@ -5,7 +5,6 @@ import { actualsApi, KIND_LABEL } from '../actualsApi'
 import { DepositChart, ValueChart } from '../components/ComparisonChart'
 import { ImportPanel, TransactionForm, ValueForm } from '../components/ActualForms'
 import { euro, percent } from '../format'
-import { PersonSwitcher } from '../components/PersonSwitcher'
 import { monthLabel } from '../monthUtils'
 import { usePerson } from '../person'
 
@@ -34,7 +33,6 @@ export function ActualPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Plan und Ist</h1>
-      <PersonSwitcher />
 
       <section aria-labelledby="vergleich">
         <h2 id="vergleich" className="text-xl">

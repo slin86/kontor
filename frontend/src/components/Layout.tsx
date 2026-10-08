@@ -1,8 +1,9 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { AccountMenu } from './AccountMenu'
-import { PersonProvider } from '../person'
+import { PersonProvider, usePerson } from '../person'
 import { Pegel } from './Pegel'
+import { PersonSwitcher } from './PersonSwitcher'
 
 const NAV = [
   { to: '/', label: 'Cashflow', end: true },
@@ -11,6 +12,24 @@ const NAV = [
   { to: '/ist', label: 'Plan & Ist' },
   { to: '/instrumente', label: 'Instrumente' },
 ]
+
+/** Pages whose numbers can be shown for one person or for everyone. */
+const PERSON_PAGES = ['/', '/finanzierungen', '/depot', '/ist']
+
+function Main() {
+  const { people } = usePerson()
+  const withSwitcher = PERSON_PAGES.includes(useLocation().pathname) && people.length > 1
+  return (
+    <main className={`relative mx-auto max-w-6xl px-4 pb-8 sm:px-6 ${withSwitcher ? 'pt-14' : 'pt-8'}`}>
+      {withSwitcher && (
+        <div className="absolute right-4 top-3 sm:right-6">
+          <PersonSwitcher />
+        </div>
+      )}
+      <Outlet />
+    </main>
+  )
+}
 
 export function Layout() {
   // the category management is part of the cashflow area
@@ -43,11 +62,9 @@ export function Layout() {
 
       <Pegel />
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <PersonProvider>
-          <Outlet />
-        </PersonProvider>
-      </main>
+      <PersonProvider>
+        <Main />
+      </PersonProvider>
     </div>
   )
 }

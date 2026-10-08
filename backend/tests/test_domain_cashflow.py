@@ -26,6 +26,7 @@ def m(year: int, month: int) -> date:
 def test_monthly_amount_normalises_frequencies() -> None:
     assert monthly_amount(D("120"), "monthly") == D("120")
     assert monthly_amount(D("300"), "quarterly") == D("100")
+    assert monthly_amount(D("600"), "semiannual") == D("100")
     assert monthly_amount(D("1200"), "yearly") == D("100")
 
 

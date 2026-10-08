@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom'
 import { cashflowApi, type AuditEntry, type Item } from '../cashflowApi'
 import { GroupBars } from '../components/GroupBars'
 import { ItemEditor, NewItemForm } from '../components/ItemForms'
-import { PersonSwitcher } from '../components/PersonSwitcher'
 import { SankeyView } from '../components/SankeyView'
 import { SeriesView } from '../components/SeriesView'
 import { euro, FREQUENCY_LABEL, percent } from '../format'
@@ -136,14 +135,11 @@ export function CashflowPage() {
         <h1 id="uebersicht" className="sr-only">
           Cashflow im {monthLabel(selected)}
         </h1>
-        <div className="mb-6">
-          <PersonSwitcher />
-          {selectedId === null && people.length > 1 && (
-            <p className="mt-2 text-sm text-tinte-weich">
-              Haushalt gesamt: Übertragungen zwischen Personen heben sich auf und tauchen hier nicht als Einnahme oder Ausgabe auf.
-            </p>
-          )}
-        </div>
+        {selectedId === null && people.length > 1 && (
+          <p className="mb-6 text-sm text-tinte-weich">
+            Haushalt gesamt: Übertragungen zwischen Personen heben sich auf und tauchen hier nicht als Einnahme oder Ausgabe auf.
+          </p>
+        )}
         {s && (
           <div className="flex flex-wrap gap-x-12 gap-y-4">
             <Figure label="Einnahmen pro Monat" value={euro(s.income)} />
