@@ -443,6 +443,7 @@ const EVENT_LABEL: Record<FinancingEvent['kind'], string> = {
   rate_change: 'Neuer Zinssatz',
   drawdown: 'Entnahme',
   payout: 'Auszahlung',
+  deposit: 'Sondereinzahlung',
 }
 
 /** A credit line talks about deposits and withdrawals instead of special repayments. */
@@ -456,7 +457,8 @@ function eventKinds(detail: FinancingDetail): FinancingEvent['kind'][] {
   const base: FinancingEvent['kind'][] = ['special_repayment', 'payment_change', 'rate_change']
   // further payouts of the advance loan, only for contracts that already stage their payouts
   const staged = ((detail.input as { payouts?: unknown[] }).payouts?.length ?? 0) > 0
-  return detail.prefinanced && staged ? ['payout', ...base] : base
+  const saving: FinancingEvent['kind'][] = detail.kind === 'building_savings' ? ['deposit'] : []
+  return detail.prefinanced && staged ? ['payout', ...saving, ...base] : [...saving, ...base]
 }
 
 export function EventForm({ detail }: { detail: FinancingDetail }) {
@@ -468,7 +470,7 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
     () => undefined,
   )
   const firstMonth =
-    kind === 'payout' || detail.kind !== 'building_savings' ? String(detail.input.start) : String(detail.input.allocation)
+    kind === 'payout' || kind === 'deposit' || detail.kind !== 'building_savings' ? String(detail.input.start) : String(detail.input.allocation)
   const min = firstMonth > current ? firstMonth : current
 
   function submit(e: FormEvent<HTMLFormElement>) {

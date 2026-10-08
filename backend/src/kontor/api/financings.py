@@ -283,6 +283,17 @@ def correct_financing(
     return _detail(f)
 
 
+def _check_saving_phase(f: Financing, month: date, what: str) -> None:
+    if f.kind != FinancingKind.BUILDING_SAVINGS:
+        raise HTTPException(422, f"{what} gibt es nur bei einem Bausparvertrag.")
+    start, allocation = (
+        parse_month(str(f.params["start"])),
+        parse_month(str(f.params["allocation"])),
+    )
+    if month < start or month >= allocation:
+        raise HTTPException(422, f"{what} müssen zwischen Vertragsbeginn und Zuteilung liegen.")
+
+
 def _check_payout(f: Financing, month: date, amount: Decimal) -> None:
     """A further payout of the advance loan has to fit between contract start and allocation."""
     if f.kind != FinancingKind.BUILDING_SAVINGS or f.params.get("prefinance_rate_percent") is None:
@@ -313,6 +324,8 @@ def add_event(
     f = _get(db, user, financing_id)
     if body.kind == "payout":
         _check_payout(f, body.month, body.value)
+    elif body.kind == "deposit":
+        _check_saving_phase(f, body.month, "Sondereinzahlungen")
     elif body.month < parse_month(_loan_start(f)):
         raise HTTPException(422, "Das Ereignis liegt vor dem Beginn der Darlehensphase.")
     if body.kind == "rate_change" and body.value > 30:
@@ -323,7 +336,7 @@ def add_event(
     f.events.append(event)
     db.flush()
     schedule = _schedule(f)
-    if body.kind != "payout" and body.month >= schedule.end_month:
+    if body.kind not in ("payout", "deposit") and body.month >= schedule.end_month:
         raise HTTPException(422, "Die Finanzierung ist zu diesem Zeitpunkt bereits abbezahlt.")
     audit(
         db,

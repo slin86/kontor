@@ -78,9 +78,16 @@ def to_params(body: LoanIn | BausparIn | CreditLineIn) -> dict[str, Any]:
     }
 
 
+SAVING_PHASE_EVENTS = ("payout", "deposit")
+
+
 def _events(f: Financing) -> list[LoanEvent]:
-    """Events of the loan phase. Payouts of an advance loan are not part of it."""
-    return [LoanEvent(e.month, e.kind, Decimal(e.value)) for e in f.events if e.kind != "payout"]
+    """Events of the loan phase. Payouts and extra deposits belong to the saving phase."""
+    return [
+        LoanEvent(e.month, e.kind, Decimal(e.value))
+        for e in f.events
+        if e.kind not in SAVING_PHASE_EVENTS
+    ]
 
 
 def all_payouts(f: Financing) -> list[tuple[date, Decimal]]:
@@ -130,6 +137,7 @@ def schedule_for(f: Financing) -> Schedule:
                 else None
             ),
             payouts=tuple(all_payouts(f)) if p.get("payouts") else None,
+            deposits=tuple((e.month, Decimal(e.value)) for e in f.events if e.kind == "deposit"),
             loan_rate=Decimal(p["loan_rate_percent"]) / PERCENT,
             loan_payment=Decimal(p["loan_payment"]),
         ),

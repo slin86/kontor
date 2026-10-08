@@ -536,3 +536,19 @@ def test_payout_event_needs_staged_payouts(client: TestClient) -> None:
         json={"month": "2027-05", "kind": "payout", "value": "1"},
     )
     assert r.status_code == 422 and "Vertragsdaten" in r.json()["detail"]
+
+
+def test_extra_deposit_counts_towards_the_saved_sum(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, BAUSPAR)
+    base_loan = next(r for r in f["schedule"] if r["phase"] == "loan")
+    url = f"/api/financings/{f['id']}/events"
+    r = client.post(url, json={"month": "2027-01", "kind": "deposit", "value": "5000"})
+    assert r.status_code == 200, r.text
+    rows = r.json()["schedule"]
+    jan = next(x for x in rows if x["month"] == "2027-01")
+    assert jan["saving"] >= 5000  # shows up as paid in that month
+    loan = next(x for x in rows if x["phase"] == "loan")
+    assert loan["balance"] + loan["principal"] < base_loan["balance"] + base_loan["principal"]
+    after_loan = client.post(url, json={"month": "2099-01", "kind": "deposit", "value": "1"})
+    assert after_loan.status_code == 422

@@ -254,6 +254,8 @@ class BausparParams:
     # staged payouts (month, amount); interest runs on what has been paid out so far.
     # Without them the whole contract sum counts from the first month.
     payouts: tuple[tuple[date, Decimal], ...] | None = None
+    # extra deposits into the Bausparkonto (month, amount); they count towards the saved sum
+    deposits: tuple[tuple[date, Decimal], ...] = ()
     deposit_rate: Decimal = ZERO  # interest on savings per year, credited every December
     loan_rate: Decimal = ZERO  # interest of the Bauspardarlehen per year
     loan_payment: Decimal = ZERO  # monthly payment in the loan phase (Tilgungsrate)
@@ -291,7 +293,8 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
     month = p.start
     while month < p.allocation:
         accrued += balance * p.deposit_rate / 12
-        balance += p.monthly_saving
+        extra = sum((a for m, a in p.deposits if m == month), ZERO)
+        balance += p.monthly_saving + extra
         if month.month == 12:
             balance += cents(accrued)
             accrued = ZERO
@@ -299,7 +302,7 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
             FinancingMonth(
                 month=month,
                 interest=advance_interest(month),
-                saving=p.monthly_saving,
+                saving=p.monthly_saving + extra,
                 fee=fee if month == p.start else ZERO,
                 balance=cents(balance),
                 phase="saving",
