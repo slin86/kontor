@@ -455,23 +455,23 @@ export function eventLabel(kind: FinancingEvent['kind'], financing: FinancingKin
 function eventKinds(detail: FinancingDetail): FinancingEvent['kind'][] {
   if (detail.kind === 'credit_line') return ['special_repayment', 'drawdown', 'payment_change', 'rate_change']
   const base: FinancingEvent['kind'][] = ['special_repayment', 'payment_change', 'rate_change']
-  // further payouts of the advance loan, only for contracts that already stage their payouts
-  const staged = ((detail.input as { payouts?: unknown[] }).payouts?.length ?? 0) > 0
   const saving: FinancingEvent['kind'][] = detail.kind === 'building_savings' ? ['deposit'] : []
-  return detail.prefinanced && staged ? ['payout', ...saving, ...base] : [...saving, ...base]
+  return detail.prefinanced ? ['payout', ...saving, ...base] : [...saving, ...base]
 }
 
 export function EventForm({ detail }: { detail: FinancingDetail }) {
   const { current } = useMonth()
   const [kind, setKind] = useState<FinancingEvent['kind']>('special_repayment')
-  const stagedHint = detail.prefinanced && !eventKinds(detail).includes('payout')
+  const stagedPayouts = ((detail.input as { payouts?: unknown[] }).payouts?.length ?? 0) > 0
+  const savingPhaseEvent = kind === 'payout' || kind === 'deposit'
   const mutation = useFinancingMutation(
     (v: { month: string; kind: FinancingEvent['kind']; value: string }) => financingApi.addEvent(detail.id, v),
     () => undefined,
   )
   const firstMonth =
     kind === 'payout' || kind === 'deposit' || detail.kind !== 'building_savings' ? String(detail.input.start) : String(detail.input.allocation)
-  const min = firstMonth > current ? firstMonth : current
+  // payouts and deposits are often only known afterwards, so past months are allowed for them
+  const min = savingPhaseEvent ? firstMonth : firstMonth > current ? firstMonth : current
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -502,9 +502,9 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
       <button type="submit" disabled={mutation.isPending} className={primary}>
         Hinzufügen
       </button>
-      {stagedHint && (
+      {kind === 'payout' && !stagedPayouts && !detail.events.some((e) => e.kind === 'payout') && (
         <p className="text-xs text-tinte-weich sm:col-span-4">
-          Einzelne Auszahlungen des Vorausdarlehens trägst du unter „Vertragsdaten korrigieren“ ein. Danach kannst du hier weitere ergänzen.
+          Bisher gilt die ganze Summe als am ersten Tag ausgezahlt. Sobald du die erste Auszahlung einträgst, zählen Zinsen nur noch auf die Auszahlungen, die du erfasst.
         </p>
       )}
       <div className="sm:col-span-4">
