@@ -226,7 +226,7 @@ export function BausparFields({ initial, prefinanced }: { initial?: Initial; pre
         name="contract_sum"
         type="decimal"
         initial={initial?.contract_sum}
-        hint={prefinanced ? 'Ohne einzelne Auszahlungen (siehe unten) wird die ganze Summe am ersten Tag ausgezahlt.' : undefined}
+        hint={prefinanced ? 'Zinsen fallen erst ab der ersten Auszahlung an. Trage die Auszahlungen unten ein oder später als Ereignis nach.' : undefined}
       />
       {prefinanced && (
         <Field
@@ -462,7 +462,6 @@ function eventKinds(detail: FinancingDetail): FinancingEvent['kind'][] {
 export function EventForm({ detail }: { detail: FinancingDetail }) {
   const { current } = useMonth()
   const [kind, setKind] = useState<FinancingEvent['kind']>('special_repayment')
-  const stagedPayouts = ((detail.input as { payouts?: unknown[] }).payouts?.length ?? 0) > 0
   const savingPhaseEvent = kind === 'payout' || kind === 'deposit'
   const mutation = useFinancingMutation(
     (v: { month: string; kind: FinancingEvent['kind']; value: string }) => financingApi.addEvent(detail.id, v),
@@ -502,11 +501,6 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
       <button type="submit" disabled={mutation.isPending} className={primary}>
         Hinzufügen
       </button>
-      {kind === 'payout' && !stagedPayouts && !detail.events.some((e) => e.kind === 'payout') && (
-        <p className="text-xs text-tinte-weich sm:col-span-4">
-          Bisher gilt die ganze Summe als am ersten Tag ausgezahlt. Sobald du die erste Auszahlung einträgst, zählen Zinsen nur noch auf die Auszahlungen, die du erfasst.
-        </p>
-      )}
       <div className="sm:col-span-4">
         <ErrorLine error={mutation.error} />
       </div>

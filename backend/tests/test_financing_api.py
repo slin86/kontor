@@ -443,7 +443,13 @@ def test_drawdown_is_not_a_cashflow_outflow(client: TestClient) -> None:
 
 def test_prefinanced_bauspar_has_debt_and_interest_from_day_one(client: TestClient) -> None:
     _login(client)
-    body = {**BAUSPAR, "start": "2026-04", "allocation": "2036-04", "prefinance_rate_percent": "4"}
+    body = {
+        **BAUSPAR,
+        "start": "2026-04",
+        "allocation": "2036-04",
+        "prefinance_rate_percent": "4",
+        "payouts": [{"month": "2026-04", "amount": "60000"}],
+    }
     f = _create(client, body)
     assert f["prefinanced"] is True
     assert f["phase"] == "saving"
@@ -528,12 +534,11 @@ def test_payout_event_adds_a_later_payout(client: TestClient) -> None:
     assert late.status_code == 422
 
 
-def test_first_payout_event_switches_an_unstaged_contract_to_staged_payouts(
-    client: TestClient,
-) -> None:
+def test_without_payouts_nothing_is_paid_out_and_no_interest_accrues(client: TestClient) -> None:
     _login(client)
     f = _create(client, {**STAGED, "payouts": None})
-    assert f["remaining_debt"] == 61000  # everything counts as paid out on day 1
+    assert f["remaining_debt"] == 0
+    assert all(r["interest"] == 0 for r in f["schedule"] if r["phase"] == "saving")
     url = f"/api/financings/{f['id']}/events"
     # payouts are usually known only afterwards, so a closed month is fine
     r = client.post(url, json={"month": "2026-02", "kind": "payout", "value": "26000"})
