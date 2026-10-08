@@ -74,7 +74,7 @@ export function CostCompare({
       </h2>
       <ul className="mt-3 flex flex-wrap gap-2 text-sm">
         {selected.map((s) => (
-          <li key={s.id} className="flex items-center gap-2 bg-white/60 px-3 py-1">
+          <li key={s.id} className="flex items-center gap-2 bg-feld/60 px-3 py-1">
             <span>{shortName(s.name)}</span>
             <button
               type="button"

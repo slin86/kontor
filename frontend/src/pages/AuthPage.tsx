@@ -8,7 +8,7 @@ import { useAuth } from '../auth'
 type Mode = 'login' | 'new-household' | 'join'
 
 const field =
-  'mt-1 w-full border border-tinte/30 bg-white/60 px-3 py-2 text-base focus:border-elbe focus:bg-white'
+  'mt-1 w-full border border-tinte/30 bg-feld/60 px-3 py-2 text-base focus:border-elbe focus:bg-feld'
 
 export function AuthPage() {
   const { me, loading, login, register } = useAuth()

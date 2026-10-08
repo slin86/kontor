@@ -180,7 +180,7 @@ function NewCategory({ all }: { all: Category[] }) {
               type="button"
               aria-pressed={kind === k}
               onClick={() => setKind(k)}
-              className={`px-4 py-2 text-sm font-medium ${kind === k ? 'bg-tinte text-karte' : 'border border-tinte/30 hover:bg-white/60'}`}
+              className={`px-4 py-2 text-sm font-medium ${kind === k ? 'bg-tinte text-karte' : 'border border-tinte/30 hover:bg-feld/60'}`}
             >
               {KIND_TITLE[k]}
             </button>

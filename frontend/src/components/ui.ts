@@ -1,6 +1,6 @@
 // Shared Tailwind class strings for form controls and buttons.
 export const input =
-  'mt-1 w-full border border-tinte/30 bg-white/60 px-3 py-2 text-base focus:border-elbe focus:bg-white'
+  'mt-1 w-full border border-tinte/30 bg-feld/60 px-3 py-2 text-base focus:border-elbe focus:bg-feld'
 export const primary = 'bg-tinte px-4 py-2 font-medium text-karte hover:bg-elbe-dunkel disabled:opacity-60'
 export const secondary = 'px-3 py-2 text-sm font-medium text-elbe-dunkel hover:underline'
 

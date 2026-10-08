@@ -209,7 +209,7 @@ export function InstrumentsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <label>
             Sortieren nach{' '}
-            <select value={filters.sort} onChange={(e) => set('sort', e.target.value as SearchParams['sort'])} className="border border-tinte/30 bg-white/60 px-2 py-1">
+            <select value={filters.sort} onChange={(e) => set('sort', e.target.value as SearchParams['sort'])} className="border border-tinte/30 bg-feld/60 px-2 py-1">
               <option value="size">Fondsgröße</option>
               <option value="ter">Kosten (TER)</option>
               <option value="name">Name</option>

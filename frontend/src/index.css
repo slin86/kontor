@@ -2,15 +2,43 @@
 @import '@fontsource-variable/hanken-grotesk';
 @import 'tailwindcss';
 
-@theme {
-  --color-karte: #e9efec;
-  --color-karte-tief: #dce6e1;
-  --color-tinte: #12263a;
-  --color-tinte-weich: #4b5d6e;
-  --color-elbe: #2e7c86;
-  --color-elbe-dunkel: #1f5c64;
-  --color-sand: #d9c9a3;
-  --color-bake: #d2432f;
+/* Colors are variables so the dark theme only has to swap values. */
+:root {
+  color-scheme: light;
+  --karte: #e9efec;
+  --karte-tief: #dce6e1;
+  --tinte: #12263a;
+  --tinte-weich: #4b5d6e;
+  --elbe: #2e7c86;
+  --elbe-dunkel: #1f5c64;
+  --sand: #d9c9a3;
+  --bake: #d2432f;
+  --feld: #ffffff;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --karte: #0e1a24;
+  --karte-tief: #14232f;
+  --tinte: #e3ebe8;
+  --tinte-weich: #9fb2bd;
+  --elbe: #4fb0bb;
+  --elbe-dunkel: #7cc7cf;
+  --sand: #8a7c55;
+  --bake: #ff7a66;
+  --feld: #0a131b;
+}
+
+@theme inline {
+  --color-karte: var(--karte);
+  --color-karte-tief: var(--karte-tief);
+  --color-tinte: var(--tinte);
+  --color-tinte-weich: var(--tinte-weich);
+  --color-elbe: var(--elbe);
+  --color-elbe-dunkel: var(--elbe-dunkel);
+  --color-sand: var(--sand);
+  --color-bake: var(--bake);
+  --color-feld: var(--feld);
   --font-display: 'Bricolage Grotesque Variable', system-ui, sans-serif;
   --font-sans: 'Hanken Grotesk Variable', system-ui, sans-serif;
 }

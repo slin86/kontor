@@ -224,7 +224,7 @@ export function ImportPanel() {
                         aria-label={`Position für ${u.isin}`}
                         value={mapping[u.isin] ?? ''}
                         onChange={(e) => assign(u.isin!, e.target.value ? Number(e.target.value) : null)}
-                        className="ml-auto border border-tinte/30 bg-white/60 px-2 py-1"
+                        className="ml-auto border border-tinte/30 bg-feld/60 px-2 py-1"
                       >
                         <option value="">Überspringen</option>
                         {positions.map((p) => (
