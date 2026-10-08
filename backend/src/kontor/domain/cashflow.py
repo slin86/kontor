@@ -22,6 +22,40 @@ def monthly_amount(amount: Decimal, frequency: str) -> Decimal:
     return amount / FREQUENCY_MONTHS[frequency]
 
 
+def month_index(month: date) -> int:
+    return month.year * 12 + month.month - 1
+
+
+def anchor_month(versions: list["VersionSpec"], active: "VersionSpec") -> date:
+    """First month of the payment rhythm the active version belongs to.
+
+    Consecutive versions with the same frequency continue one rhythm, so raising the amount of a
+    yearly item in October does not move its due month away from, say, March.
+    """
+    ordered = sorted(versions, key=lambda v: v.valid_from)
+    idx = ordered.index(active)
+    start = active
+    while idx > 0:
+        prev = ordered[idx - 1]
+        if prev.frequency != active.frequency or prev.valid_to != start.valid_from:
+            break
+        start = prev
+        idx -= 1
+    return start.valid_from
+
+
+def booked_amount(spec: "VersionSpec", anchor: date, month: date, spread: bool = True) -> Decimal:
+    """What an item costs in ``month``.
+
+    Spread items count their monthly equivalent every month. Others are booked in full in the
+    months they fall due (every ``n`` months from ``anchor``) and are zero in between.
+    """
+    n = FREQUENCY_MONTHS[spec.frequency]
+    if spread or n == 1:
+        return spec.amount / n
+    return spec.amount if (month_index(month) - month_index(anchor)) % n == 0 else Decimal(0)
+
+
 # --------------------------------------------------------------------------------------
 # Effective-dated versions
 # --------------------------------------------------------------------------------------

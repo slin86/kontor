@@ -261,3 +261,32 @@ def test_semiannual_items_are_normalised_to_months(client: TestClient) -> None:
     _create_item(client, "Versicherung", "Versicherungen", "600", frequency="semiannual")
     s = client.get("/api/cashflow/summary", params={"month": "2026-06"}).json()
     assert s["expenses"] == 100
+
+
+def test_item_without_spreading_is_booked_in_the_due_month_only(client: TestClient) -> None:
+    _login_new_household(client)
+    cid = _category_id(client, "Versicherungen")
+    r = client.post(
+        "/api/cashflow/items",
+        json={
+            "name": "KFZ-Steuer",
+            "category_id": cid,
+            "amount": "240",
+            "frequency": "yearly",
+            "valid_from": "2026-03",
+            "spread": False,
+        },
+    )
+    assert r.status_code == 201
+    item = r.json()
+    assert item["spread"] is False
+    due = client.get("/api/cashflow/summary", params={"month": "2027-03"}).json()
+    other = client.get("/api/cashflow/summary", params={"month": "2027-04"}).json()
+    assert due["expenses"] == 240
+    assert other["expenses"] == 0
+    listed = client.get("/api/cashflow/items", params={"month": "2027-04"}).json()
+    assert listed[0]["due_now"] is False and listed[0]["booked"] == 0
+
+    # switching to spreading changes every month, the outlook always averages
+    client.patch(f"/api/cashflow/items/{item['id']}", json={"spread": True})
+    assert client.get("/api/cashflow/summary", params={"month": "2027-04"}).json()["expenses"] == 20

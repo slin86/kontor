@@ -5,7 +5,10 @@ import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
 import { AccountPage } from './pages/AccountPage'
 import { ActualPage } from './pages/ActualPage'
-import { CashflowPage } from './pages/CashflowPage'
+import { CashflowShell } from './pages/cashflow/CashflowShell'
+import { DetailsView } from './pages/cashflow/DetailsView'
+import { ItemsView } from './pages/cashflow/ItemsView'
+import { OverviewView } from './pages/cashflow/OverviewView'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { DepotPage } from './pages/DepotPage'
 import { FinancingsPage } from './pages/FinancingsPage'
@@ -30,7 +33,11 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<CashflowPage />} />
+        <Route element={<CashflowShell />}>
+          <Route index element={<OverviewView />} />
+          <Route path="details" element={<DetailsView />} />
+          <Route path="posten" element={<ItemsView />} />
+        </Route>
         <Route path="kategorien" element={<CategoriesPage />} />
         <Route path="finanzierungen" element={<FinancingsPage />} />
         <Route path="depot" element={<DepotPage />} />

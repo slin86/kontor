@@ -233,6 +233,13 @@ def _item_out(item: CashflowItem, month: date, scope: Scope) -> ItemOut:
         ),
         None,
     )
+    specs = _specs(item)
+    spec = dom.active_version(specs, month)
+    booked = (
+        dom.booked_amount(spec, dom.anchor_month(specs, spec), month, item.spread)
+        if spec
+        else Decimal(0)
+    )
     incoming = scope.incoming(item)
     sender = scope.names.get(item.person_id, "")
     return ItemOut(
@@ -245,19 +252,26 @@ def _item_out(item: CashflowItem, month: date, scope: Scope) -> ItemOut:
         transfer_to_id=item.transfer_to_id,
         transfer_to_name=scope.names.get(item.transfer_to_id) if item.transfer_to_id else None,
         incoming=incoming,
+        spread=item.spread,
+        due_now=booked > 0,
+        booked=float(dom.cents(booked)),
         active=_version_out(active) if active else None,
         versions=[_version_out(v) for v in item.versions],
     )
 
 
-def _active_items(items: list[CashflowItem], month: date, scope: Scope) -> list[dom.ActiveItem]:
+def _active_items(
+    items: list[CashflowItem], month: date, scope: Scope, averaged: bool = False
+) -> list[dom.ActiveItem]:
     """Items booked in a month. Transfers net out in the household view and are income for
-    the receiver, expense for the sender."""
+    the receiver, expense for the sender. ``averaged`` ignores the due month and spreads every
+    periodic item over the year, which is what long-range views want."""
     out: list[dom.ActiveItem] = []
     for item in items:
         if item.transfer_to_id is not None and scope.person is None:
             continue
-        spec = dom.active_version(_specs(item), month)
+        specs = _specs(item)
+        spec = dom.active_version(specs, month)
         if spec is None:
             continue
         incoming = scope.incoming(item)
@@ -266,7 +280,9 @@ def _active_items(items: list[CashflowItem], month: date, scope: Scope) -> list[
                 item.id,
                 f"Übertrag von {scope.names.get(item.person_id, '')}" if incoming else item.name,
                 scope.income_category if incoming else item.category_id,
-                dom.monthly_amount(spec.amount, spec.frequency),
+                dom.booked_amount(
+                    spec, dom.anchor_month(specs, spec), month, item.spread or averaged
+                ),
             )
         )
     return out
@@ -490,6 +506,7 @@ def create_item(body: ItemCreate, user: CurrentUser, db: DbSession) -> ItemOut:
         person_id=owner.id,
         transfer_to_id=transfer_to.id if transfer_to else None,
         name=body.name.strip(),
+        spread=body.spread,
     )
     item.versions.append(
         CashflowVersion(amount=body.amount, frequency=body.frequency, valid_from=body.valid_from)
@@ -511,7 +528,14 @@ def create_item(body: ItemCreate, user: CurrentUser, db: DbSession) -> ItemOut:
 @router.patch("/cashflow/items/{item_id}", response_model=ItemOut)
 def rename_item(item_id: int, body: ItemRename, user: CurrentUser, db: DbSession) -> ItemOut:
     item = _item_or_404(db, user, item_id)
-    before = {"name": item.name, "category_id": item.category_id, "person_id": item.person_id}
+    before = {
+        "name": item.name,
+        "category_id": item.category_id,
+        "person_id": item.person_id,
+        "spread": item.spread,
+    }
+    if body.spread is not None:
+        item.spread = body.spread
     if body.category_id is not None:
         if item.transfer_to_id is not None:
             raise HTTPException(422, "Übertragungen haben eine feste Kategorie")
@@ -535,7 +559,12 @@ def rename_item(item_id: int, body: ItemRename, user: CurrentUser, db: DbSession
         "cashflow_item",
         item.id,
         before=before,
-        after={"name": item.name, "category_id": item.category_id, "person_id": item.person_id},
+        after={
+            "name": item.name,
+            "category_id": item.category_id,
+            "person_id": item.person_id,
+            "spread": item.spread,
+        },
     )
     return _item_out(item, current_month(), _scope(db, user, None))
 

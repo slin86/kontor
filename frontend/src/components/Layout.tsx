@@ -14,7 +14,13 @@ const NAV = [
 ]
 
 /** Pages whose numbers can be shown for one person or for everyone. */
-const PERSON_PAGES = ['/', '/finanzierungen', '/depot', '/ist']
+const PERSON_PAGES = ['/', '/details', '/posten', '/finanzierungen', '/depot', '/ist']
+
+/** Pages that follow the month ruler: the cashflow views, Depot and Plan & Ist. */
+const MONTH_PAGES = ['/', '/details', '/posten', '/depot', '/ist']
+
+/** The cashflow area groups its three views and the category management. */
+const CASHFLOW_PATHS = ['/', '/details', '/posten', '/kategorien']
 
 function Main() {
   const { people } = usePerson()
@@ -32,8 +38,8 @@ function Main() {
 }
 
 export function Layout() {
-  // the category management is part of the cashflow area
-  const inCashflow = useLocation().pathname === '/kategorien'
+  const path = useLocation().pathname
+  const inCashflow = CASHFLOW_PATHS.includes(path)
 
   return (
     <div className="min-h-screen">
@@ -47,7 +53,7 @@ export function Layout() {
               end={n.end}
               className={({ isActive }) =>
                 `border-b-2 pb-0.5 text-sm font-medium ${
-                  isActive || (n.to === '/' && inCashflow) ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
+                  n.to === '/' ? inCashflow : isActive ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
                 }`
               }
             >
@@ -60,7 +66,7 @@ export function Layout() {
         </div>
       </header>
 
-      <Pegel />
+      {MONTH_PAGES.includes(path) && <Pegel />}
 
       <PersonProvider>
         <Main />

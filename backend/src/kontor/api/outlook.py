@@ -66,7 +66,7 @@ def outlook(
                 a.monthly
                 * (income_f if kind_of[a.category_id] == CategoryKind.INCOME else expense_f),
             )
-            for a in _active_items(items, m, scope)
+            for a in _active_items(items, m, scope, averaged=True)
         ]
         s = dom.summarize(infos, scaled, book.flows_at(m, regular_only=True))
         points.append(

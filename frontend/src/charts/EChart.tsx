@@ -1,5 +1,5 @@
-import { BarChart, LineChart, SankeyChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
+import { BarChart, LineChart, PieChart, SankeyChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, MarkLineComponent, TitleComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import type { EChartsCoreOption } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { useTheme } from '../theme'
 
-echarts.use([SankeyChart, BarChart, LineChart, TooltipComponent, GridComponent, LegendComponent, MarkLineComponent, CanvasRenderer])
+echarts.use([SankeyChart, BarChart, LineChart, PieChart, TooltipComponent, GridComponent, LegendComponent, MarkLineComponent, TitleComponent, CanvasRenderer])
 
 // Charts are written with the light palette; in dark mode these colors are swapped on the fly.
 const DARK_COLORS: Record<string, string> = {

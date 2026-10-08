@@ -156,3 +156,23 @@ def test_financings_reduce_the_balance_and_appear_in_the_sankey() -> None:
     assert to_group.value == D("1350.00")
     surplus = next(link for link in sk.links if link.target == "surplus")
     assert surplus.value == D("2150.00")
+
+
+def test_unspread_item_is_booked_only_in_due_months() -> None:
+    from kontor.domain.cashflow import anchor_month, booked_amount
+
+    v = VersionSpec(D("1200"), "yearly", m(2026, 3))
+    assert booked_amount(v, anchor_month([v], v), m(2026, 3), spread=False) == D("1200")
+    assert booked_amount(v, m(2026, 3), m(2026, 4), spread=False) == D(0)
+    assert booked_amount(v, m(2026, 3), m(2027, 3), spread=False) == D("1200")
+    assert booked_amount(v, m(2026, 3), m(2026, 4), spread=True) == D("100")
+
+
+def test_anchor_survives_amount_change_but_not_frequency_change() -> None:
+    from kontor.domain.cashflow import anchor_month
+
+    a = VersionSpec(D("1200"), "yearly", m(2026, 3), m(2026, 10))
+    b = VersionSpec(D("1300"), "yearly", m(2026, 10), m(2027, 2))
+    c = VersionSpec(D("400"), "quarterly", m(2027, 2))
+    assert anchor_month([a, b, c], b) == m(2026, 3)
+    assert anchor_month([a, b, c], c) == m(2027, 2)

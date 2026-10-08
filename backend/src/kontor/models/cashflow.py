@@ -5,7 +5,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Numeric, String
+import sqlalchemy as sa
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kontor.core.db import Base
@@ -58,6 +59,9 @@ class CashflowItem(Base):
         ForeignKey("persons.id"), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(120))
+    # Quarterly/semiannual/yearly items: True spreads the cost evenly over the months, False
+    # books the full amount only in the month it falls due.
+    spread: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa.true())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     category: Mapped[Category] = relationship()
