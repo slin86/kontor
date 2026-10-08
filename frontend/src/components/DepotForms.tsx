@@ -9,7 +9,9 @@ import {
   type InstrumentKind,
   type NewInstrument,
 } from '../depotApi'
+import type { CatalogEntry } from '../catalogApi'
 import { useMonth } from '../month'
+import { CatalogPicker } from './CatalogPicker'
 import { ErrorLine } from './ErrorLine'
 import { decimalString, input, primary, secondary } from './ui'
 
@@ -123,7 +125,16 @@ export interface Prefill {
 export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentDetail) => void; prefill?: Prefill }) {
   const { current } = useMonth()
   const [kind, setKind] = useState<InstrumentKind>(prefill?.kind ?? 'etf')
+  // the entry taken from the catalog search; its values fill the form
+  const [picked, setPicked] = useState<Prefill | null>(prefill ?? null)
+  const [pickCount, setPickCount] = useState(0)
   const mutation = useDepotMutation((v: NewInstrument) => depotApi.create(v), onDone)
+
+  function pick(e: CatalogEntry) {
+    setKind(e.kind)
+    setPicked({ kind: e.kind, name: e.name, isin: e.isin, cost_percent: e.ter_percent })
+    setPickCount((n) => n + 1)
+  }
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -139,6 +150,7 @@ export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentD
 
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+      <CatalogPicker onPick={pick} />
       <fieldset className="sm:col-span-2">
         <legend className="text-sm">Art der Position</legend>
         <div className="mt-1 flex gap-2">
@@ -156,7 +168,7 @@ export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentD
         </div>
       </fieldset>
       {/* remount when the kind changes so the suggested defaults follow */}
-      <AssumptionFields key={kind} kind={kind} initial={prefill?.kind === kind ? prefill : undefined} />
+      <AssumptionFields key={`${kind}-${pickCount}`} kind={kind} initial={picked?.kind === kind ? picked : undefined} />
       <label className="block text-sm">
         Startmonat
         <input name="start" type="month" required defaultValue={current} className={input} />

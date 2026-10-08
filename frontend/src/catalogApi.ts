@@ -71,8 +71,8 @@ export const REPLICATION_LABEL: Record<string, string> = {
 }
 
 export const catalogApi = {
-  search: (p: SearchParams) => {
-    const query = new URLSearchParams({ sort: p.sort, limit: '100' })
+  search: (p: SearchParams, limit = 100) => {
+    const query = new URLSearchParams({ sort: p.sort, limit: String(limit) })
     if (p.q.trim()) query.set('q', p.q.trim())
     if (p.index) query.set('index', p.index)
     if (p.distribution) query.set('distribution', p.distribution)
