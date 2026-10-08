@@ -1,9 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { AccountMenu } from './AccountMenu'
-import { useMonth } from '../month'
 import { PersonProvider } from '../person'
-import { monthLabel } from '../monthUtils'
 import { Pegel } from './Pegel'
 
 const NAV = [
@@ -15,7 +13,6 @@ const NAV = [
 ]
 
 export function Layout() {
-  const { selected, current, isLocked } = useMonth()
   // the category management is part of the cashflow area
   const inCashflow = useLocation().pathname === '/kategorien'
 
@@ -47,14 +44,6 @@ export function Layout() {
       <Pegel />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <p className="mb-6 text-sm text-tinte-weich">
-          {monthLabel(selected)} ·{' '}
-          {isLocked(selected)
-            ? 'abgeschlossen. Änderungen sind nur als Korrektur möglich.'
-            : selected === current
-              ? 'aktueller Monat'
-              : 'geplant'}
-        </p>
         <PersonProvider>
           <Outlet />
         </PersonProvider>
