@@ -16,6 +16,7 @@ const KIND_LABEL: Record<string, string> = {
   other: 'Kredit',
   building_savings: 'Bausparvertrag',
   credit_line: 'Rahmenkredit',
+  prefinanced: 'Bausparfinanzierung',
 }
 
 const PHASE_LABEL: Record<Financing['phase'], string> = {
@@ -155,7 +156,10 @@ function Detail({ financing }: { financing: Financing }) {
     <div className="mt-4 space-y-8 border-l-4 border-tinte/20 pl-4 sm:pl-6">
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         {d.remaining_debt !== null && (
-          <Figure label={d.kind === 'credit_line' ? 'Aktuell genutzt' : 'Restschuld'} value={euro(d.remaining_debt)} />
+          <Figure
+            label={d.kind === 'credit_line' ? 'Aktuell genutzt' : d.prefinanced && d.phase === 'saving' ? 'Vorausdarlehen' : 'Restschuld'}
+            value={euro(d.remaining_debt)}
+          />
         )}
         {d.credit_limit !== null && d.available !== null && (
           <>
@@ -283,7 +287,7 @@ export function FinancingsPage() {
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className="font-medium">{f.name}</span>
                 <span className="text-sm text-tinte-weich">
-                  {KIND_LABEL[f.kind === 'loan' ? (f.purpose ?? 'other') : f.kind]} · {PHASE_LABEL[f.phase]}
+                  {KIND_LABEL[f.prefinanced ? 'prefinanced' : f.kind === 'loan' ? (f.purpose ?? 'other') : f.kind]} · {PHASE_LABEL[f.phase]}
                 </span>
                 <span className="zahl ml-auto">
                   {euro(f.payment_this_month, true)}

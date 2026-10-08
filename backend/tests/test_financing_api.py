@@ -439,3 +439,18 @@ def test_drawdown_is_not_a_cashflow_outflow(client: TestClient) -> None:
         summary["financing"] == 500 or summary["financing"] > 0
     )  # interest + repayment only, no negative flow
     assert summary["financing"] < 1000
+
+
+def test_prefinanced_bauspar_has_debt_and_interest_from_day_one(client: TestClient) -> None:
+    _login(client)
+    body = {**BAUSPAR, "start": "2026-04", "allocation": "2036-04", "prefinance_rate_percent": "4"}
+    f = _create(client, body)
+    assert f["prefinanced"] is True
+    assert f["phase"] == "saving"
+    assert f["remaining_debt"] == 60000  # paid out on day 1
+    assert f["saved"] is not None
+    first = f["schedule"][0]
+    assert first["interest"] == 200 and first["saving"] == 200
+    plain = _create(client, BAUSPAR)
+    assert plain["prefinanced"] is False
+    assert plain["remaining_debt"] is None

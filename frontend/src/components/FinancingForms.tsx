@@ -138,11 +138,26 @@ function FeeField({ initial }: { initial?: Initial }) {
   )
 }
 
-export function BausparFields({ initial }: { initial?: Initial }) {
+export function BausparFields({ initial, prefinanced }: { initial?: Initial; prefinanced?: boolean }) {
   return (
     <>
       <Field label="Bezeichnung" name="name" initial={initial?.name} />
-      <Field label="Bausparsumme in Euro" name="contract_sum" type="decimal" initial={initial?.contract_sum} />
+      <Field
+        label={prefinanced ? 'Bausparsumme und Darlehenssumme in Euro' : 'Bausparsumme in Euro'}
+        name="contract_sum"
+        type="decimal"
+        initial={initial?.contract_sum}
+        hint={prefinanced ? 'Die ganze Summe wird am ersten Tag ausgezahlt.' : undefined}
+      />
+      {prefinanced && (
+        <Field
+          label="Zins des Vorausdarlehens in Prozent pro Jahr"
+          name="prefinance_rate_percent"
+          type="decimal"
+          initial={initial?.prefinance_rate_percent}
+          hint="Bis zur Zuteilung zahlst du nur diese Zinsen, keine Tilgung."
+        />
+      )}
       <Field label="Sparbeitrag pro Monat in Euro" name="monthly_saving" type="decimal" initial={initial?.monthly_saving} />
       <Field label="Vertragsbeginn" name="start" type="month" initial={initial?.start} />
       <Field label="Zuteilung im Monat" name="allocation" type="month" initial={initial?.allocation} />
@@ -210,6 +225,7 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
     allocation: s('allocation'),
     ...(f.get('fee_unit') === 'euro' ? { fee_amount: d('fee_value') } : { fee_percent: d('fee_value') }),
     deposit_rate_percent: d('deposit_rate_percent'),
+    ...(f.get('prefinance_rate_percent') ? { prefinance_rate_percent: d('prefinance_rate_percent') } : {}),
     loan_rate_percent: d('loan_rate_percent'),
     loan_payment: d('loan_payment'),
   }
@@ -228,20 +244,23 @@ function useFinancingMutation<V>(fn: (v: V) => Promise<FinancingDetail>, onDone:
   })
 }
 
-function KindFields({ kind, initial }: { kind: FinancingKind; initial?: Initial }) {
+/** The form tabs. A Bausparfinanzierung is a Bauspar contract that has an advance loan. */
+type FormKind = FinancingKind | 'prefinanced'
+
+function KindFields({ kind, initial }: { kind: FormKind; initial?: Initial }) {
   if (kind === 'loan') return <LoanFields initial={initial} />
   if (kind === 'credit_line') return <CreditLineFields initial={initial} />
-  return <BausparFields initial={initial} />
+  return <BausparFields initial={initial} prefinanced={kind === 'prefinanced'} />
 }
 
 export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail) => void }) {
   const { selected } = useMonth()
-  const [kind, setKind] = useState<FinancingKind>('loan')
+  const [kind, setKind] = useState<FormKind>('loan')
   const mutation = useFinancingMutation(financingApi.create, onDone)
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    mutation.mutate(readInput(kind, new FormData(e.currentTarget)))
+    mutation.mutate(readInput(kind === 'prefinanced' ? 'building_savings' : kind, new FormData(e.currentTarget)))
   }
 
   const initial = { start: selected, allocation: addMonths(selected, 120) }
@@ -253,6 +272,7 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
             ['loan', 'Kredit oder Immobilienfinanzierung'],
             ['credit_line', 'Rahmenkredit'],
             ['building_savings', 'Bausparvertrag'],
+            ['prefinanced', 'Bausparfinanzierung'],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -295,7 +315,7 @@ export function CorrectionForm({ detail, onDone }: { detail: FinancingDetail; on
         für Eingabefehler. Spätere Änderungen wie Sondertilgungen, Einzahlungen oder Entnahmen trägst du als Ereignis ein.
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KindFields kind={detail.kind} initial={detail.input} />
+        <KindFields kind={detail.prefinanced ? 'prefinanced' : detail.kind} initial={detail.input} />
         <Field label="Begründung (wird im Protokoll gespeichert)" name="reason" initial="" wide />
       </div>
       <div className="mt-4 flex items-center gap-2">

@@ -15,6 +15,7 @@ export interface Financing {
   phase: Phase
   remaining_debt: number | null
   saved: number | null
+  prefinanced: boolean // Bausparfinanzierung: advance loan next to the savings phase
   total_interest: number
   remaining_interest: number
   credit_limit: number | null // credit line only
@@ -92,6 +93,7 @@ export type BausparInput = {
   fee_percent?: string
   fee_amount?: string // the fee in euros instead of fee_percent
   deposit_rate_percent: string
+  prefinance_rate_percent?: string // set for a Bausparfinanzierung
   loan_rate_percent: string
   loan_payment: string
 }

@@ -65,6 +65,9 @@ def to_params(body: LoanIn | BausparIn | CreditLineIn) -> dict[str, Any]:
         "fee_percent": str(body.fee_percent),
         "fee_amount": str(body.fee_amount) if body.fee_amount is not None else None,
         "deposit_rate_percent": str(body.deposit_rate_percent),
+        "prefinance_rate_percent": (
+            str(body.prefinance_rate_percent) if body.prefinance_rate_percent is not None else None
+        ),
         "loan_rate_percent": str(body.loan_rate_percent),
         "loan_payment": str(body.loan_payment),
     }
@@ -108,6 +111,11 @@ def schedule_for(f: Financing) -> Schedule:
             fee_percent=Decimal(p["fee_percent"]) / PERCENT,
             fee_amount=Decimal(p["fee_amount"]) if p.get("fee_amount") else None,
             deposit_rate=Decimal(p["deposit_rate_percent"]) / PERCENT,
+            prefinance_rate=(
+                Decimal(p["prefinance_rate_percent"]) / PERCENT
+                if p.get("prefinance_rate_percent") is not None
+                else None
+            ),
             loan_rate=Decimal(p["loan_rate_percent"]) / PERCENT,
             loan_payment=Decimal(p["loan_payment"]),
         ),

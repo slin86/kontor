@@ -82,8 +82,14 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
         else:
             first = loan_rows[0]
             remaining_debt = float(first.balance + first.principal - first.drawn)
+    prefinanced = f.kind == FinancingKind.BUILDING_SAVINGS and (
+        f.params.get("prefinance_rate_percent") is not None
+    )
     if f.kind == FinancingKind.BUILDING_SAVINGS and phase in ("not_started", "saving"):
-        remaining_debt = None  # the loan only exists after allocation
+        # the Bauspar loan only exists after allocation; an advance loan is paid out on day 1
+        remaining_debt = (
+            float(Decimal(f.params["contract_sum"])) if prefinanced and phase == "saving" else None
+        )
 
     saved: float | None = None
     if f.kind == FinancingKind.BUILDING_SAVINGS:
@@ -109,6 +115,7 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
         phase=phase,
         remaining_debt=remaining_debt,
         saved=saved,
+        prefinanced=prefinanced,
         total_interest=float(sum(r.interest for r in rows)),
         remaining_interest=float(sum(r.interest for r in rows if r.month >= today)),
         credit_limit=credit_limit,

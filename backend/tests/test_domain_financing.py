@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -216,3 +217,16 @@ def test_credit_line_rejects_balance_over_limit_and_too_small_payment() -> None:
         credit_line_schedule(credit(balance=D("25000")))
     with pytest.raises(FinancingError, match="Zinsen"):
         credit_line_schedule(credit(monthly_payment=D("40")))
+
+
+def test_prefinanced_bauspar_pays_interest_on_the_whole_sum_until_allocation() -> None:
+    plain = bauspar_schedule(BAUSPAR)
+    pre = bauspar_schedule(replace(BAUSPAR, prefinance_rate=D("0.04")))
+    saving = [r for r in pre.rows if r.phase == "saving"]
+    assert saving[0].interest == D("200.00")  # 60000 * 4 % / 12
+    assert all(r.interest == D("200.00") for r in saving)
+    assert all(r.saving == BAUSPAR.monthly_saving for r in saving)
+    # the Bauspar loan after allocation is the same as without an advance loan
+    plain_loan = [r for r in plain.rows if r.phase == "loan"]
+    pre_loan = [r for r in pre.rows if r.phase == "loan"]
+    assert [r.balance for r in pre_loan] == [r.balance for r in plain_loan]

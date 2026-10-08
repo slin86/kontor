@@ -59,6 +59,10 @@ Not covered yet: correcting the *dates* of a version, deleting items.
   monthly on the remaining balance (annuity loan).
 - **Bausparvertrag**: saving phase (monthly contribution, interest credited each December, one-off
   Abschlussgebuehr), allocation month, then a loan phase with its own rate and payment.
+- **Bausparfinanzierung** (Bausparvertrag with advance loan): the whole contract sum is paid out on day 1 as an
+  interest-only advance loan (Vorausdarlehen). Until allocation you pay its interest plus the monthly saving;
+  at allocation savings and Bauspardarlehen settle the advance loan and only the Bauspar loan keeps running.
+  It is a Bauspar contract with `prefinance_rate_percent` set. The fee can be given in percent or euros.
 - **Credit line** (Rahmenkredit): limit, amount drawn today, annual rate and a fixed monthly payment. Runs
   like an annuity loan, but money can be taken out again up to the limit. Deposits are special repayments,
   withdrawals are `drawdown` events (money received, so no cashflow outflow). Exceeding the limit is rejected.

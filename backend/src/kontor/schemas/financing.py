@@ -37,6 +37,8 @@ class BausparIn(BaseModel):
     fee_percent: Annotated[Decimal, Field(ge=0, le=5)] = Decimal("1")
     fee_amount: Money | None = None  # the fee in euros; replaces ``fee_percent`` when given
     deposit_rate_percent: Annotated[Decimal, Field(ge=0, le=10)] = Decimal("0")
+    # set for a Bausparfinanzierung: interest of the advance loan that is paid out on day 1
+    prefinance_rate_percent: Percent | None = None
     loan_rate_percent: Percent = Decimal("0")
     loan_payment: Money  # monthly payment in the loan phase
 
@@ -106,6 +108,7 @@ class FinancingOut(BaseModel):
     phase: Literal["not_started", "saving", "loan", "finished"]
     remaining_debt: float | None  # None while a Bauspar contract is still saving
     saved: float | None  # savings balance of a Bauspar contract
+    prefinanced: bool = False  # Bausparfinanzierung: advance loan runs next to the savings phase
     total_interest: float
     remaining_interest: float
     credit_limit: float | None = None  # credit line only

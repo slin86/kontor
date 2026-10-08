@@ -248,6 +248,9 @@ class BausparParams:
     allocation: date  # month of Zuteilung; the loan phase starts here
     fee_percent: Decimal = Decimal("0.01")  # Abschlussgebühr as share of the contract sum
     fee_amount: Decimal | None = None  # the fee in euros; takes precedence over ``fee_percent``
+    # Bausparfinanzierung: the whole contract sum is paid out on day 1 as an interest-only
+    # advance loan (Vorausdarlehen) at this rate until the contract is allocated.
+    prefinance_rate: Decimal | None = None
     deposit_rate: Decimal = ZERO  # interest on savings per year, credited every December
     loan_rate: Decimal = ZERO  # interest of the Bauspardarlehen per year
     loan_payment: Decimal = ZERO  # monthly payment in the loan phase (Tilgungsrate)
@@ -256,6 +259,8 @@ class BausparParams:
 def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = None) -> Schedule:
     """Saving phase (monthly savings plus year-end interest), then the Bauspardarlehen.
 
+    With ``prefinance_rate`` the saving phase also pays interest on the full contract sum. At
+    allocation, savings and Bauspardarlehen together pay off that advance loan.
     The contract fee is due in the first month. At allocation the saved balance counts towards the
     contract sum; the remainder is paid out as a loan that runs like an annuity loan.
     """
@@ -266,6 +271,9 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
         raise FinancingError("Der Sparbeitrag muss größer als null sein.")
 
     fee = p.fee_amount if p.fee_amount is not None else cents(p.contract_sum * p.fee_percent)
+    advance_interest = (
+        cents(p.contract_sum * p.prefinance_rate / 12) if p.prefinance_rate is not None else ZERO
+    )
     rows: list[FinancingMonth] = []
     balance = ZERO
     accrued = ZERO
@@ -279,6 +287,7 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
         rows.append(
             FinancingMonth(
                 month=month,
+                interest=advance_interest,
                 saving=p.monthly_saving,
                 fee=fee if month == p.start else ZERO,
                 balance=cents(balance),
