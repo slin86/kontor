@@ -10,6 +10,7 @@ import {
   type NewInstrument,
 } from '../depotApi'
 import { useMonth } from '../month'
+import { usePerson } from '../person'
 import { ErrorLine } from './ErrorLine'
 import { decimalString, input, primary, secondary } from './ui'
 
@@ -122,6 +123,8 @@ export interface Prefill {
 
 export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentDetail) => void; prefill?: Prefill }) {
   const { current } = useMonth()
+  const { people, me, selectedId } = usePerson()
+  const [owner, setOwner] = useState<number | undefined>(selectedId ?? me?.id)
   const [kind, setKind] = useState<InstrumentKind>(prefill?.kind ?? 'etf')
   const mutation = useDepotMutation((v: NewInstrument) => depotApi.create(v), onDone)
 
@@ -130,6 +133,7 @@ export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentD
     const f = new FormData(e.currentTarget)
     mutation.mutate({
       ...readAssumptions(f),
+      person_id: owner,
       kind,
       start: String(f.get('start')),
       start_value: decimalString(f.get('start_value')) || '0',
@@ -155,6 +159,18 @@ export function NewInstrumentForm({ onDone, prefill }: { onDone: (d: InstrumentD
           ))}
         </div>
       </fieldset>
+      {people.length > 1 && (
+        <label className="block text-sm sm:col-span-2">
+          Gehört zu
+          <select value={owner ?? ''} onChange={(e) => setOwner(Number(e.target.value))} className={input}>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {/* remount when the kind changes so the suggested defaults follow */}
       <AssumptionFields key={kind} kind={kind} initial={prefill?.kind === kind ? prefill : undefined} />
       <label className="block text-sm">
@@ -310,5 +326,30 @@ export function CorrectionForm({ detail, onDone }: { detail: InstrumentDetail; o
         <ErrorLine error={mutation.error} />
       </div>
     </form>
+  )
+}
+
+/** Hands a position to another person, for example when it was entered for the wrong one. */
+export function OwnerForm({ detail }: { detail: InstrumentDetail }) {
+  const { people } = usePerson()
+  const mutation = useDepotMutation((personId: number) => depotApi.changeOwner(detail.id, personId))
+  if (people.length < 2) return null
+  return (
+    <label className="block text-sm">
+      Gehört zu
+      <select
+        value={detail.person_id}
+        disabled={mutation.isPending}
+        onChange={(e) => mutation.mutate(Number(e.target.value))}
+        className={`${input} sm:max-w-xs`}
+      >
+        {people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <ErrorLine error={mutation.error} />
+    </label>
   )
 }

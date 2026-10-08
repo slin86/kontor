@@ -2,16 +2,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 
 import { taxApi } from '../depotApi'
+import type { Person } from '../peopleApi'
 import { ErrorLine } from './ErrorLine'
 import { decimalString, input, primary } from './ui'
 
-/** Household-wide inputs for the tax estimate. Collapsed by default: most people keep the defaults. */
-export function TaxSettingsForm() {
+/**
+ * Inputs for the tax estimate of one person. Collapsed by default: most people keep the defaults.
+ * Allowance and church tax are personal, so there is nothing to edit while everyone is shown together.
+ */
+export function TaxSettingsForm({ person }: { person: Person | undefined }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
-  const settings = useQuery({ queryKey: ['tax', 'settings'], queryFn: taxApi.get })
+  const id = person?.id
+  const settings = useQuery({
+    queryKey: ['tax', 'settings', id],
+    queryFn: () => taxApi.get(id as number),
+    enabled: id !== undefined,
+  })
   const save = useMutation({
-    mutationFn: taxApi.save,
+    mutationFn: (v: Parameters<typeof taxApi.save>[1]) => taxApi.save(id as number, v),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['tax'] })
       await qc.invalidateQueries({ queryKey: ['depot'] })
@@ -19,6 +28,14 @@ export function TaxSettingsForm() {
     },
   })
   const s = settings.data
+  if (!person) {
+    return (
+      <p className="mt-4 text-sm text-tinte-weich">
+        Die Steuer-Annahmen gelten pro Person. Jede Person wird mit ihrem eigenen Sparer-Pauschbetrag gerechnet. Wähle oben eine
+        Person, um sie zu ändern.
+      </p>
+    )
+  }
   if (!s) return null
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -34,7 +51,7 @@ export function TaxSettingsForm() {
   return (
     <div className="mt-4 text-sm">
       <p>
-        Steuer-Annahmen: {s.church_tax_percent > 0 ? `Kirchensteuer ${s.church_tax_percent} %` : 'ohne Kirchensteuer'}, Sparer-Pauschbetrag{' '}
+        Steuer-Annahmen für {person.name}: {s.church_tax_percent > 0 ? `Kirchensteuer ${s.church_tax_percent} %` : 'ohne Kirchensteuer'}, Sparer-Pauschbetrag{' '}
         {s.allowance.toLocaleString('de-DE')} € pro Jahr, Basiszins {String(s.base_interest_percent).replace('.', ',')} % für künftige Jahre.{' '}
         {!open && (
           <button type="button" onClick={() => setOpen(true)} className="font-medium text-elbe-dunkel hover:underline">
@@ -55,7 +72,7 @@ export function TaxSettingsForm() {
           <label className="block">
             Sparer-Pauschbetrag pro Jahr in Euro
             <input name="allowance" inputMode="decimal" defaultValue={String(s.allowance).replace('.', ',')} className={input} />
-            <span className="mt-1 block text-xs text-tinte-weich">1.000 Euro einzeln, 2.000 Euro gemeinsam veranlagt. Gilt hier ganz für dieses Depot.</span>
+            <span className="mt-1 block text-xs text-tinte-weich">1.000 Euro einzeln, 2.000 Euro gemeinsam veranlagt. Gilt für das Depot dieser Person.</span>
           </label>
           <label className="block">
             Basiszins ab 2027 in Prozent

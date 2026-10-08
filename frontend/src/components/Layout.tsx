@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../auth'
 import { useMonth } from '../month'
+import { PersonProvider } from '../person'
 import { monthLabel } from '../monthUtils'
 import { Pegel } from './Pegel'
 
@@ -11,6 +12,7 @@ const NAV = [
   { to: '/depot', label: 'Depot' },
   { to: '/ist', label: 'Plan & Ist' },
   { to: '/instrumente', label: 'Instrumente' },
+  { to: '/haushalt', label: 'Haushalt' },
 ]
 
 export function Layout() {
@@ -56,7 +58,9 @@ export function Layout() {
               ? 'aktueller Monat'
               : 'geplant'}
         </p>
-        <Outlet />
+        <PersonProvider>
+          <Outlet />
+        </PersonProvider>
       </main>
     </div>
   )

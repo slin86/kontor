@@ -8,6 +8,7 @@ import { CashflowPage } from './pages/CashflowPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { DepotPage } from './pages/DepotPage'
 import { FinancingsPage } from './pages/FinancingsPage'
+import { HouseholdPage } from './pages/HouseholdPage'
 import { InstrumentsPage } from './pages/InstrumentsPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="depot" element={<DepotPage />} />
         <Route path="ist" element={<ActualPage />} />
         <Route path="instrumente" element={<InstrumentsPage />} />
+        <Route path="haushalt" element={<HouseholdPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

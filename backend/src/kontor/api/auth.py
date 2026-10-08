@@ -19,6 +19,7 @@ from kontor.core.throttle import Throttle
 from kontor.models import AuthSession, Household, User
 from kontor.schemas.auth import HouseholdOut, LoginRequest, MeOut, RegisterRequest, UserOut
 from kontor.services.categories import seed_default_categories
+from kontor.services.people import add_person
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -138,6 +139,7 @@ def register(body: RegisterRequest, request: Request, response: Response, db: Db
     )
     db.add(user)
     db.flush()
+    add_person(db, household.id, user.display_name, user)
     db.refresh(household)
     _start_session(db, response, user)
     return _me(user)

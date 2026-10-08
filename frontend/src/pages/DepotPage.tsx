@@ -4,13 +4,23 @@ import { Link, useLocation } from 'react-router-dom'
 
 import { ConfirmDelete } from '../components/ConfirmDelete'
 import { DepotChart } from '../components/DepotChart'
-import { AssumptionsForm, CorrectionForm, NewInstrumentForm, OneOffForm, RateForm, type Prefill } from '../components/DepotForms'
+import {
+  AssumptionsForm,
+  CorrectionForm,
+  NewInstrumentForm,
+  OneOffForm,
+  OwnerForm,
+  RateForm,
+  type Prefill,
+} from '../components/DepotForms'
 import { input, primary } from '../components/ui'
 import { catalogApi } from '../catalogApi'
 import { depotApi, KIND_LABEL, type Instrument, type InstrumentDetail, type Rate } from '../depotApi'
 import { TaxSettingsForm } from '../components/TaxSettingsForm'
 import { euro } from '../format'
 import { useMonth } from '../month'
+import { PersonSwitcher } from '../components/PersonSwitcher'
+import { usePerson } from '../person'
 import { monthLabel } from '../monthUtils'
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: 'plus' | 'minus' }) {
@@ -36,19 +46,23 @@ function addOne(key: string, delta: number): string {
 
 function Projection() {
   const { current } = useMonth()
+  const { selectedId, selected } = usePerson()
   const [years, setYears] = useState(30)
   const [spread, setSpread] = useState(2)
   const [inflation, setInflation] = useState(0)
 
-  const base = useQuery({ queryKey: ['depot', 'projection', years, 0, inflation], queryFn: () => depotApi.projection(years, 0, inflation) })
+  const base = useQuery({
+    queryKey: ['depot', 'projection', selectedId, years, 0, inflation],
+    queryFn: () => depotApi.projection(years, 0, inflation, selectedId),
+  })
   const low = useQuery({
-    queryKey: ['depot', 'projection', years, -spread, inflation],
-    queryFn: () => depotApi.projection(years, -spread, inflation),
+    queryKey: ['depot', 'projection', selectedId, years, -spread, inflation],
+    queryFn: () => depotApi.projection(years, -spread, inflation, selectedId),
     enabled: spread > 0,
   })
   const high = useQuery({
-    queryKey: ['depot', 'projection', years, spread, inflation],
-    queryFn: () => depotApi.projection(years, spread, inflation),
+    queryKey: ['depot', 'projection', selectedId, years, spread, inflation],
+    queryFn: () => depotApi.projection(years, spread, inflation, selectedId),
     enabled: spread > 0,
   })
 
@@ -66,7 +80,7 @@ function Projection() {
   return (
     <section aria-labelledby="prognose">
       <h2 id="prognose" className="text-xl">
-        Wie sich dein Depot entwickelt
+        {selected && selectedId !== null ? `Wie sich das Depot von ${selected.name} entwickelt` : 'Wie sich dein Depot entwickelt'}
       </h2>
       <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3 text-sm">
         <label>
@@ -124,7 +138,7 @@ function Projection() {
             Steuern“ zeigt, was nach Abgeltungsteuer ({String(data.tax_rate_percent).replace('.', ',')} % auf steuerpflichtige
             Erträge) übrig bliebe, wenn du in dem jeweiligen Monat alles verkaufst. Das ist eine Schätzung, keine Steuerberatung.
           </p>
-          <TaxSettingsForm />
+          <TaxSettingsForm person={selected} />
         </>
       )}
       {data && !hasPositions && (
@@ -277,6 +291,7 @@ function Detail({ instrument }: { instrument: Instrument }) {
             onConfirm={() => drop.mutate()}
           />
         )}
+        {mode === 'view' && <OwnerForm detail={d} />}
         {mode === 'assumptions' && <AssumptionsForm detail={d} onDone={() => setMode('view')} />}
         {mode === 'correct' && <CorrectionForm detail={d} onDone={() => setMode('view')} />}
       </div>
@@ -285,7 +300,9 @@ function Detail({ instrument }: { instrument: Instrument }) {
 }
 
 export function DepotPage() {
-  const overview = useQuery({ queryKey: ['depot', 'overview'], queryFn: depotApi.overview })
+  const { selectedId, people } = usePerson()
+  const overview = useQuery({ queryKey: ['depot', 'overview', selectedId], queryFn: () => depotApi.overview(selectedId) })
+  const ownerName = (id: number) => people.find((p) => p.id === id)?.name
   const prefill = (useLocation().state as { prefill?: Prefill } | null)?.prefill
   const [adding, setAdding] = useState(Boolean(prefill))
   const [open, setOpen] = useState<number | null>(null)
@@ -295,6 +312,7 @@ export function DepotPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Depot</h1>
+      <PersonSwitcher />
 
       {d && d.instruments.length > 0 && (
         <div className="flex flex-wrap gap-x-10 gap-y-4">
@@ -342,6 +360,7 @@ export function DepotPage() {
                 <span className="text-sm text-tinte-weich">
                   {KIND_LABEL[i.kind]}
                   {i.isin ? ` · ${i.isin}` : ''}
+                  {selectedId === null && people.length > 1 && ownerName(i.person_id) ? ` · ${ownerName(i.person_id)}` : ''}
                 </span>
                 <span className="zahl ml-auto">
                   {euro(i.current_rate, true)}
