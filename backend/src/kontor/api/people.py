@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 
 from kontor.api.deps import CurrentUser, DbSession
-from kontor.models import CashflowItem, Financing, Instrument, Person
+from kontor.models import Asset, CashflowItem, Financing, Instrument, Person
 from kontor.services.audit import record as audit
 from kontor.services.people import add_person, get_person, list_people, own_person
 
@@ -73,10 +73,12 @@ def delete_person(person_id: int, user: CurrentUser, db: DbSession) -> None:
             "Die Person hat noch Cashflow-Posten, Übertragungen oder Finanzierungen. "
             "Lösche oder verschiebe sie zuerst.",
         )
-    if db.scalar(select(func.count(Instrument.id)).where(Instrument.person_id == person.id)):
+    if db.scalar(select(func.count(Instrument.id)).where(Instrument.person_id == person.id)) or (
+        db.scalar(select(func.count(Asset.id)).where(Asset.person_id == person.id))
+    ):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Die Person hat noch Depotpositionen. Lösche sie zuerst.",
+            "Die Person hat noch Depotpositionen oder Vermögenswerte. Lösche sie zuerst.",
         )
     audit(db, user, "delete", "person", person.id, before={"name": person.name})
     db.delete(person)

@@ -2,6 +2,7 @@
 
 from kontor.models.account import AuthSession, Household, Person, User
 from kontor.models.actuals import ActualValue, DepotTransaction
+from kontor.models.asset import Asset, AssetKind
 from kontor.models.cashflow import (
     AuditLog,
     CashflowItem,
@@ -16,6 +17,8 @@ from kontor.models.financing import Financing, FinancingEvent, FinancingKind
 
 __all__ = [
     "ActualValue",
+    "Asset",
+    "AssetKind",
     "AuditLog",
     "AuthSession",
     "CashflowItem",

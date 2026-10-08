@@ -10,11 +10,12 @@ const NAV = [
   { to: '/finanzierungen', label: 'Finanzierungen' },
   { to: '/depot', label: 'Depot' },
   { to: '/ist', label: 'Plan & Ist' },
+  { to: '/vermoegen', label: 'Vermögen' },
   { to: '/instrumente', label: 'Instrumente' },
 ]
 
 /** Pages whose numbers can be shown for one person or for everyone. */
-const PERSON_PAGES = ['/', '/details', '/posten', '/finanzierungen', '/depot', '/ist']
+const PERSON_PAGES = ['/', '/details', '/posten', '/finanzierungen', '/depot', '/ist', '/vermoegen']
 
 /** Pages that follow the month ruler: the cashflow views, Depot and Plan & Ist. */
 const MONTH_PAGES = ['/', '/details', '/posten', '/depot', '/ist']
