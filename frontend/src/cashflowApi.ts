@@ -1,4 +1,5 @@
 import { api } from './api'
+import { personQuery } from './peopleApi'
 
 export type Frequency = 'monthly' | 'quarterly' | 'yearly'
 export type Kind = 'income' | 'expense'
@@ -28,6 +29,10 @@ export interface Item {
   category_id: number
   category_name: string
   kind: Kind
+  person_id: number
+  transfer_to_id: number | null
+  transfer_to_name: string | null
+  incoming: boolean // a transfer seen from the person who receives it
   active: Version | null
   versions: Version[]
 }
@@ -104,14 +109,20 @@ export const cashflowApi = {
     api<Category[]>(`/categories/${id}/move`, { method: 'POST', json: { direction } }),
   deleteCategory: (id: number, moveTo: number | null) =>
     api<void>(`/categories/${id}${moveTo === null ? '' : `?move_to=${moveTo}`}`, { method: 'DELETE' }),
-  items: (month: string) => api<Item[]>(`/cashflow/items?month=${month}`),
-  summary: (month: string) => api<Summary>(`/cashflow/summary?month=${month}`),
-  sankey: (month: string) => api<Sankey>(`/cashflow/sankey?month=${month}`),
-  series: (from: string, to: string) => api<SeriesPoint[]>(`/cashflow/series?from=${from}&to=${to}`),
+  items: (month: string, person: number | null) =>
+    api<Item[]>(`/cashflow/items?month=${month}${personQuery(person)}`),
+  summary: (month: string, person: number | null) =>
+    api<Summary>(`/cashflow/summary?month=${month}${personQuery(person)}`),
+  sankey: (month: string, person: number | null) =>
+    api<Sankey>(`/cashflow/sankey?month=${month}${personQuery(person)}`),
+  series: (from: string, to: string, person: number | null) =>
+    api<SeriesPoint[]>(`/cashflow/series?from=${from}&to=${to}${personQuery(person)}`),
   audit: () => api<AuditEntry[]>('/audit?limit=30'),
   createItem: (json: {
     name: string
-    category_id: number
+    category_id?: number
+    person_id?: number
+    transfer_to_id?: number
     amount: string
     frequency: Frequency
     valid_from: string

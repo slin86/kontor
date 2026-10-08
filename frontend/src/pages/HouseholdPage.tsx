@@ -101,8 +101,9 @@ function PeopleSection() {
         Personen mit Depot
       </h2>
       <p className="mt-2 max-w-2xl text-sm text-tinte-weich">
-        Jede Person hat ihr eigenes Depot, ihre eigenen Ist-Werte und eigene Steuerangaben. Kinder brauchen keine Anmeldung: Du legst sie hier an und wechselst
-        oben auf den Seiten Depot und Plan &amp; Ist zwischen den Personen. Der Cashflow und die Finanzierungen gelten für den ganzen Haushalt.
+        Jede Person hat ihr eigenes Depot, eigene Ist-Werte, Steuerangaben, Cashflow-Posten und Finanzierungen. Kinder brauchen keine Anmeldung: Du legst sie hier an
+        und wechselst oben auf den Seiten zwischen den Personen oder siehst den ganzen Haushalt zusammen. Geld, das eine Person an eine andere überweist, trägst du
+        als Übertrag bei den Cashflow-Posten ein.
       </p>
       <ul className="mt-3 divide-y divide-tinte/15">
         {people.data?.map((p) => <PersonRow key={p.id} person={p} onChanged={refresh} />)}

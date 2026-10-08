@@ -7,11 +7,13 @@ from fastapi import APIRouter, Query
 
 from kontor.api.cashflow import (
     MonthParam,
+    PersonParam,
     _active_items,
     _categories,
     _category_infos,
     _items,
     _month_query,
+    _scope,
     _specs,
 )
 from kontor.api.deps import CurrentUser, DbSession
@@ -40,15 +42,17 @@ def outlook(
     years: Annotated[int, Query(ge=1, le=50)] = 30,
     income_growth: Annotated[Decimal, Query(ge=-10, le=20)] = Decimal(0),
     expense_growth: Annotated[Decimal, Query(ge=-10, le=20)] = Decimal(0),
+    person: PersonParam = None,
 ) -> OutlookOut:
     first = _month_query(start)
     months = month_range(first, add_months(first, years * 12 - 1))
 
+    scope = _scope(db, user, person)
     cats = _categories(db, user.household_id)
     infos = _category_infos(cats)
     kind_of = {c.id: c.kind for c in cats}
-    items = _items(db, user.household_id)
-    book = load_book(db, user.household_id)
+    items = _items(db, user.household_id, scope.person)
+    book = load_book(db, user.household_id, scope.person)
 
     points: list[OutlookPoint] = []
     for idx, m in enumerate(months):
@@ -62,7 +66,7 @@ def outlook(
                 a.monthly
                 * (income_f if kind_of[a.category_id] == CategoryKind.INCOME else expense_f),
             )
-            for a in _active_items(items, m)
+            for a in _active_items(items, m, scope)
         ]
         s = dom.summarize(infos, scaled, book.flows_at(m, regular_only=True))
         points.append(
@@ -91,17 +95,21 @@ def outlook(
             )
 
     for item in items:
+        if item.transfer_to_id is not None and scope.person is None:
+            continue  # transfers net out for the household
         specs = _specs(item)
         final = max(specs, key=lambda v: v.valid_from)
         if final.valid_to is None or not (first < final.valid_to <= last):
             continue
         monthly = dom.monthly_amount(final.amount, final.frequency)
-        sign = 1 if item.category.kind == CategoryKind.EXPENSE else -1
+        incoming = scope.incoming(item)
+        sign = 1 if item.category.kind == CategoryKind.EXPENSE and not incoming else -1
+        name = f"Übertrag von {scope.names.get(item.person_id, '')}" if incoming else item.name
         events.append(
             OutlookEvent(
                 month=final.valid_to,
                 kind="item_end",
-                label=f"{item.name} endet",
+                label=f"{name} endet",
                 monthly_change=float(dom.cents(monthly) * sign),
             )
         )

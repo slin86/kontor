@@ -98,10 +98,12 @@ CSV import, deleting positions.
 ## People and household
 
 A household has several **people**. Every user gets one on registration; children (or anyone without a login) are added on the *Haushalt* page.
-Positions, actual values, transactions, CSV imports and tax settings belong to one person. Cashflow and financings stay household-wide.
-The Depot and Plan & Ist pages have a switcher (one person, or *Alle zusammen*, which sums per-owner taxes with each owner's own settings).
+Positions, actual values, transactions, CSV imports, tax settings, cashflow items and financings belong to one person; categories are shared.
+The Depot, Plan & Ist, Cashflow and Finanzierungen pages have a switcher (one person, or *Alle zusammen*, which sums everything; taxes are computed per owner with that owner's settings).
+A **transfer** is a cashflow item with a receiver (e.g. Mandy pays 800 € per month to Nils): an expense of the sender, income of the receiver, and netted out in the household total.
+It has versions like any other item, so it can change over time. Transfers are booked on the categories *Übertrag an andere Person* / *Übertrag erhalten*, created on first use.
 The *Haushalt* page also manages login members, the invite code (renewing invalidates the old one), the household name and the own profile/password.
-Migration `0008` assigns existing positions to the earliest member and moves the tax settings to their person.
+Migrations `0008` and `0009` assign existing positions, items and financings to the earliest member and move the tax settings to their person.
 
 ## Instrument catalog
 

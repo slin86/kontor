@@ -1,11 +1,12 @@
 """Categories and cashflow: items with effective-dated versions, summaries, Sankey, audit log."""
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from kontor.api.deps import CurrentUser, DbSession
@@ -17,6 +18,7 @@ from kontor.models import (
     CashflowVersion,
     Category,
     CategoryKind,
+    Person,
     User,
 )
 from kontor.schemas.cashflow import (
@@ -43,6 +45,7 @@ from kontor.schemas.cashflow import (
 from kontor.services.audit import record as audit_record
 from kontor.services.depot_book import load_instruments
 from kontor.services.financing_book import load_book, load_financings
+from kontor.services.people import get_person, list_people, own_person
 
 router = APIRouter(prefix="/api", tags=["cashflow"])
 
@@ -98,15 +101,75 @@ def _category_or_422(db: Session, household_id: int, category_id: int) -> Catego
     return cat
 
 
-def _items(db: Session, household_id: int) -> list[CashflowItem]:
+def _items(db: Session, household_id: int, person_id: int | None = None) -> list[CashflowItem]:
+    """The household's items; for one person also the transfers they receive."""
+    stmt = select(CashflowItem).where(CashflowItem.household_id == household_id)
+    if person_id is not None:
+        stmt = stmt.where(
+            or_(CashflowItem.person_id == person_id, CashflowItem.transfer_to_id == person_id)
+        )
     return list(
         db.scalars(
-            select(CashflowItem)
-            .where(CashflowItem.household_id == household_id)
-            .options(selectinload(CashflowItem.versions), selectinload(CashflowItem.category))
-            .order_by(CashflowItem.name)
+            stmt.options(
+                selectinload(CashflowItem.versions), selectinload(CashflowItem.category)
+            ).order_by(CashflowItem.name)
         )
     )
+
+
+SAME_PERSON = "Absender und Empfänger eines Übertrags müssen verschieden sein"
+TRANSFER_OUT = "Übertrag an andere Person"
+TRANSFER_IN = "Übertrag erhalten"
+
+
+def _transfer_category(
+    db: Session, household_id: int, kind: CategoryKind, *, create: bool = False
+) -> Category | None:
+    """The category transfers are booked on (sender: expense, receiver: income)."""
+    name = TRANSFER_OUT if kind == CategoryKind.EXPENSE else TRANSFER_IN
+    cat = db.scalar(
+        select(Category).where(
+            Category.household_id == household_id,
+            Category.name == name,
+            Category.kind == kind,
+            Category.parent_id.is_(None),
+        )
+    )
+    if cat is None and create:
+        last = max((c.sort_order for c in _categories(db, household_id)), default=0)
+        cat = Category(household_id=household_id, name=name, kind=kind, sort_order=last + 1)
+        db.add(cat)
+        db.flush()
+    return cat
+
+
+@dataclass
+class Scope:
+    """Whose books a request looks at: one person, or the whole household (``person`` None)."""
+
+    person: int | None
+    names: dict[int, str]
+    income_category: int  # where received transfers show up
+
+    def incoming(self, item: CashflowItem) -> bool:
+        return (
+            self.person is not None
+            and item.transfer_to_id == self.person
+            and item.person_id != self.person
+        )
+
+
+def _scope(db: Session, user: User, person: int | None) -> Scope:
+    if person is not None:
+        person = get_person(db, user.household_id, person).id
+    names = {p.id: p.name for p in list_people(db, user.household_id)}
+    cat = _transfer_category(db, user.household_id, CategoryKind.INCOME)
+    return Scope(person, names, cat.id if cat else -1)
+
+
+PersonParam = Annotated[
+    int | None, Query(description="Only this person's books; the whole household when left out")
+]
 
 
 def _item_or_404(db: Session, user: User, item_id: int) -> CashflowItem:
@@ -161,7 +224,7 @@ def _version_out(v: CashflowVersion) -> VersionOut:
     )
 
 
-def _item_out(item: CashflowItem, month: date) -> ItemOut:
+def _item_out(item: CashflowItem, month: date, scope: Scope) -> ItemOut:
     active = next(
         (
             v
@@ -170,30 +233,42 @@ def _item_out(item: CashflowItem, month: date) -> ItemOut:
         ),
         None,
     )
+    incoming = scope.incoming(item)
+    sender = scope.names.get(item.person_id, "")
     return ItemOut(
         id=item.id,
-        name=item.name,
-        category_id=item.category_id,
-        category_name=item.category.name,
-        kind=item.category.kind,
+        name=f"Übertrag von {sender}" if incoming else item.name,
+        category_id=scope.income_category if incoming else item.category_id,
+        category_name=TRANSFER_IN if incoming else item.category.name,
+        kind=CategoryKind.INCOME if incoming else item.category.kind,
+        person_id=item.person_id,
+        transfer_to_id=item.transfer_to_id,
+        transfer_to_name=scope.names.get(item.transfer_to_id) if item.transfer_to_id else None,
+        incoming=incoming,
         active=_version_out(active) if active else None,
         versions=[_version_out(v) for v in item.versions],
     )
 
 
-def _active_items(items: list[CashflowItem], month: date) -> list[dom.ActiveItem]:
+def _active_items(items: list[CashflowItem], month: date, scope: Scope) -> list[dom.ActiveItem]:
+    """Items booked in a month. Transfers net out in the household view and are income for
+    the receiver, expense for the sender."""
     out: list[dom.ActiveItem] = []
     for item in items:
+        if item.transfer_to_id is not None and scope.person is None:
+            continue
         spec = dom.active_version(_specs(item), month)
-        if spec is not None:
-            out.append(
-                dom.ActiveItem(
-                    item.id,
-                    item.name,
-                    item.category_id,
-                    dom.monthly_amount(spec.amount, spec.frequency),
-                )
+        if spec is None:
+            continue
+        incoming = scope.incoming(item)
+        out.append(
+            dom.ActiveItem(
+                item.id,
+                f"Übertrag von {scope.names.get(item.person_id, '')}" if incoming else item.name,
+                scope.income_category if incoming else item.category_id,
+                dom.monthly_amount(spec.amount, spec.frequency),
             )
+        )
     return out
 
 
@@ -379,17 +454,42 @@ def list_items(
     db: DbSession,
     month: MonthParam = None,
     include_inactive: bool = False,
+    person: PersonParam = None,
 ) -> list[ItemOut]:
     m = _month_query(month)
-    out = [_item_out(i, m) for i in _items(db, user.household_id)]
+    scope = _scope(db, user, person)
+    out = [_item_out(i, m, scope) for i in _items(db, user.household_id, scope.person)]
     return out if include_inactive else [i for i in out if i.active is not None]
 
 
 @router.post("/cashflow/items", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
 def create_item(body: ItemCreate, user: CurrentUser, db: DbSession) -> ItemOut:
-    _category_or_422(db, user.household_id, body.category_id)
+    owner = (
+        get_person(db, user.household_id, body.person_id)
+        if body.person_id is not None
+        else own_person(db, user)
+    )
+    transfer_to: Person | None = None
+    if body.transfer_to_id is not None:
+        transfer_to = get_person(db, user.household_id, body.transfer_to_id)
+        if transfer_to.id == owner.id:
+            raise HTTPException(
+                422, "Absender und Empfänger eines Übertrags müssen verschieden sein"
+            )
+        category = _transfer_category(db, user.household_id, CategoryKind.EXPENSE, create=True)
+        _transfer_category(db, user.household_id, CategoryKind.INCOME, create=True)
+        assert category is not None
+        category_id = category.id
+    else:
+        if body.category_id is None:
+            raise HTTPException(422, "Wähle eine Kategorie")
+        category_id = _category_or_422(db, user.household_id, body.category_id).id
     item = CashflowItem(
-        household_id=user.household_id, category_id=body.category_id, name=body.name.strip()
+        household_id=user.household_id,
+        category_id=category_id,
+        person_id=owner.id,
+        transfer_to_id=transfer_to.id if transfer_to else None,
+        name=body.name.strip(),
     )
     item.versions.append(
         CashflowVersion(amount=body.amount, frequency=body.frequency, valid_from=body.valid_from)
@@ -405,16 +505,25 @@ def create_item(body: ItemCreate, user: CurrentUser, db: DbSession) -> ItemOut:
         item.id,
         after={"name": item.name, **_version_snapshot(item.versions[0])},
     )
-    return _item_out(item, body.valid_from)
+    return _item_out(item, body.valid_from, _scope(db, user, None))
 
 
 @router.patch("/cashflow/items/{item_id}", response_model=ItemOut)
 def rename_item(item_id: int, body: ItemRename, user: CurrentUser, db: DbSession) -> ItemOut:
     item = _item_or_404(db, user, item_id)
-    before = {"name": item.name, "category_id": item.category_id}
+    before = {"name": item.name, "category_id": item.category_id, "person_id": item.person_id}
     if body.category_id is not None:
+        if item.transfer_to_id is not None:
+            raise HTTPException(422, "Übertragungen haben eine feste Kategorie")
         _category_or_422(db, user.household_id, body.category_id)
         item.category_id = body.category_id
+    if body.person_id is not None:
+        owner = get_person(db, user.household_id, body.person_id)
+        if owner.id == item.transfer_to_id:
+            raise HTTPException(
+                422, "Absender und Empfänger eines Übertrags müssen verschieden sein"
+            )
+        item.person_id = owner.id
     if body.name is not None:
         item.name = body.name.strip()
     db.flush()
@@ -426,9 +535,9 @@ def rename_item(item_id: int, body: ItemRename, user: CurrentUser, db: DbSession
         "cashflow_item",
         item.id,
         before=before,
-        after={"name": item.name, "category_id": item.category_id},
+        after={"name": item.name, "category_id": item.category_id, "person_id": item.person_id},
     )
-    return _item_out(item, current_month())
+    return _item_out(item, current_month(), _scope(db, user, None))
 
 
 @router.post("/cashflow/items/{item_id}/change", response_model=ItemOut)
@@ -454,7 +563,7 @@ def change_item(item_id: int, body: ItemChange, user: CurrentUser, db: DbSession
         before={"versions": before},
         after={"versions": [_version_snapshot(v) for v in item.versions]},
     )
-    return _item_out(item, body.effective_from)
+    return _item_out(item, body.effective_from, _scope(db, user, None))
 
 
 @router.post("/cashflow/items/{item_id}/end", response_model=ItemOut)
@@ -477,7 +586,7 @@ def end_item(item_id: int, body: ItemEnd, user: CurrentUser, db: DbSession) -> I
         before={"versions": before},
         after={"versions": [_version_snapshot(v) for v in item.versions]},
     )
-    return _item_out(item, body.end_from)
+    return _item_out(item, body.end_from, _scope(db, user, None))
 
 
 @router.post("/cashflow/versions/{version_id}/correct", response_model=ItemOut)
@@ -508,7 +617,7 @@ def correct_version(
     )
     item = version.item
     db.refresh(item)
-    return _item_out(item, version.valid_from)
+    return _item_out(item, version.valid_from, _scope(db, user, None))
 
 
 # --------------------------------------------------------------------------------------
@@ -528,12 +637,15 @@ def _group_out(g: dom.GroupSummary) -> GroupOut:
 
 
 @router.get("/cashflow/summary", response_model=SummaryOut)
-def summary(user: CurrentUser, db: DbSession, month: MonthParam = None) -> SummaryOut:
+def summary(
+    user: CurrentUser, db: DbSession, month: MonthParam = None, person: PersonParam = None
+) -> SummaryOut:
     m = _month_query(month)
+    scope = _scope(db, user, person)
     s = dom.summarize(
         _category_infos(_categories(db, user.household_id)),
-        _active_items(_items(db, user.household_id), m),
-        load_book(db, user.household_id).flows_at(m),
+        _active_items(_items(db, user.household_id, scope.person), m, scope),
+        load_book(db, user.household_id, scope.person).flows_at(m),
     )
     return SummaryOut(
         month=m,
@@ -560,12 +672,15 @@ def summary(user: CurrentUser, db: DbSession, month: MonthParam = None) -> Summa
 
 
 @router.get("/cashflow/sankey", response_model=SankeyOut)
-def sankey(user: CurrentUser, db: DbSession, month: MonthParam = None) -> SankeyOut:
+def sankey(
+    user: CurrentUser, db: DbSession, month: MonthParam = None, person: PersonParam = None
+) -> SankeyOut:
     m = _month_query(month)
+    scope = _scope(db, user, person)
     s = dom.build_sankey(
         _category_infos(_categories(db, user.household_id)),
-        _active_items(_items(db, user.household_id), m),
-        load_book(db, user.household_id).flows_at(m),
+        _active_items(_items(db, user.household_id, scope.person), m, scope),
+        load_book(db, user.household_id, scope.person).flows_at(m),
     )
     return SankeyOut(
         month=m,
@@ -583,6 +698,7 @@ def series(
     db: DbSession,
     start: Annotated[str, Query(alias="from", pattern=r"^\d{4}-(0[1-9]|1[0-2])$")],
     end: Annotated[str, Query(alias="to", pattern=r"^\d{4}-(0[1-9]|1[0-2])$")],
+    person: PersonParam = None,
 ) -> list[SeriesPoint]:
     first, last = parse_month(start), parse_month(end)
     if last < first:
@@ -591,11 +707,12 @@ def series(
     if len(months) > 240:
         raise HTTPException(422, "Höchstens 240 Monate pro Abfrage")
     cats = _category_infos(_categories(db, user.household_id))
-    items = _items(db, user.household_id)
-    book = load_book(db, user.household_id)
+    scope = _scope(db, user, person)
+    items = _items(db, user.household_id, scope.person)
+    book = load_book(db, user.household_id, scope.person)
     out: list[SeriesPoint] = []
     for m in months:
-        s = dom.summarize(cats, _active_items(items, m), book.flows_at(m))
+        s = dom.summarize(cats, _active_items(items, m, scope), book.flows_at(m))
         out.append(
             SeriesPoint(
                 month=m,
