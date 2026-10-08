@@ -46,7 +46,7 @@ export function CatalogPicker({ onPick }: { onPick: (entry: CatalogEntry) => voi
         </p>
       )}
       {hits.length > 0 && (
-        <ul className="mt-2 divide-y divide-tinte/15 border border-tinte/20 bg-white/60">
+        <ul className="mt-2 divide-y divide-tinte/15 border border-tinte/20 bg-feld/60">
           {hits.map((e) => (
             <li key={e.id}>
               <button
