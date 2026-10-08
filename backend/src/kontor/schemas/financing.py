@@ -35,12 +35,33 @@ class BausparIn(BaseModel):
     start: Month
     allocation: Month  # month of Zuteilung
     fee_percent: Annotated[Decimal, Field(ge=0, le=5)] = Decimal("1")
+    fee_amount: Money | None = None  # the fee in euros; replaces ``fee_percent`` when given
     deposit_rate_percent: Annotated[Decimal, Field(ge=0, le=10)] = Decimal("0")
+    # set for a Bausparfinanzierung: interest of the advance loan that is paid out on day 1
+    prefinance_rate_percent: Percent | None = None
     loan_rate_percent: Percent = Decimal("0")
     loan_payment: Money  # monthly payment in the loan phase
 
 
-FinancingIn = Annotated[LoanIn | BausparIn, Field(discriminator="kind")]
+class CreditLineIn(BaseModel):
+    """A revolving credit line: a limit, what is drawn today and a fixed monthly payment."""
+
+    kind: Literal["credit_line"]
+    name: str = Field(min_length=1, max_length=120)
+    limit: Money
+    balance: Money  # amount drawn today
+    annual_rate_percent: Percent
+    monthly_payment: Money
+    start: Month  # month of the first payment
+
+    @model_validator(mode="after")
+    def _within_limit(self) -> Self:
+        if self.balance > self.limit:
+            raise ValueError("Der genutzte Betrag darf den Rahmen nicht übersteigen.")
+        return self
+
+
+FinancingIn = Annotated[LoanIn | BausparIn | CreditLineIn, Field(discriminator="kind")]
 
 
 class FinancingCorrection(BaseModel):
@@ -50,8 +71,8 @@ class FinancingCorrection(BaseModel):
 
 class EventIn(BaseModel):
     month: Month
-    kind: Literal["special_repayment", "payment_change", "rate_change"]
-    # euros for special_repayment and payment_change, percent per year for rate_change
+    kind: Literal["special_repayment", "payment_change", "rate_change", "drawdown"]
+    # euros for special_repayment, drawdown and payment_change, percent per year for rate_change
     value: Annotated[Decimal, Field(gt=0, le=100_000_000)]
 
 
@@ -72,12 +93,13 @@ class ScheduleRowOut(BaseModel):
     balance: float
     phase: str
     special: float
+    drawn: float
 
 
 class FinancingOut(BaseModel):
     id: int
     person_id: int
-    kind: Literal["loan", "building_savings"]
+    kind: Literal["loan", "building_savings", "credit_line"]
     name: str
     purpose: str | None
     start: Month
@@ -87,8 +109,11 @@ class FinancingOut(BaseModel):
     phase: Literal["not_started", "saving", "loan", "finished"]
     remaining_debt: float | None  # None while a Bauspar contract is still saving
     saved: float | None  # savings balance of a Bauspar contract
+    prefinanced: bool = False  # Bausparfinanzierung: advance loan runs next to the savings phase
     total_interest: float
     remaining_interest: float
+    credit_limit: float | None = None  # credit line only
+    available: float | None = None  # credit line only: what can still be drawn
 
 
 class FinancingDetailOut(FinancingOut):

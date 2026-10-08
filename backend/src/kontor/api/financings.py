@@ -12,6 +12,7 @@ from kontor.domain.financing import FinancingError, Schedule
 from kontor.models import Financing, FinancingEvent, FinancingKind
 from kontor.schemas.financing import (
     BausparIn,
+    CreditLineIn,
     EventIn,
     EventOut,
     FinancingCorrection,
@@ -56,7 +57,7 @@ def _schedule(f: Financing) -> Schedule:
 
 def _loan_start(f: Financing) -> str:
     """First month in which events make sense: loan start, or Bauspar allocation."""
-    key = "start" if f.kind == FinancingKind.LOAN else "allocation"
+    key = "allocation" if f.kind == FinancingKind.BUILDING_SAVINGS else "start"
     return str(f.params[key])
 
 
@@ -81,14 +82,27 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
             remaining_debt = float(paid_before[-1].balance)
         else:
             first = loan_rows[0]
-            remaining_debt = float(first.balance + first.principal)
+            remaining_debt = float(first.balance + first.principal - first.drawn)
+    prefinanced = f.kind == FinancingKind.BUILDING_SAVINGS and (
+        f.params.get("prefinance_rate_percent") is not None
+    )
     if f.kind == FinancingKind.BUILDING_SAVINGS and phase in ("not_started", "saving"):
-        remaining_debt = None  # the loan only exists after allocation
+        # the Bauspar loan only exists after allocation; an advance loan is paid out on day 1
+        remaining_debt = (
+            float(Decimal(f.params["contract_sum"])) if prefinanced and phase == "saving" else None
+        )
 
     saved: float | None = None
     if f.kind == FinancingKind.BUILDING_SAVINGS:
         saving_rows = [r for r in before if r.phase == "saving"]
         saved = float(saving_rows[-1].balance) if saving_rows else 0.0
+
+    credit_limit: float | None = None
+    available: float | None = None
+    if f.kind == FinancingKind.CREDIT_LINE:
+        credit_limit = float(Decimal(f.params["limit"]))
+        used = remaining_debt if remaining_debt is not None else 0.0
+        available = max(credit_limit - used, 0.0)
 
     return FinancingOut(
         id=f.id,
@@ -103,8 +117,11 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
         phase=phase,
         remaining_debt=remaining_debt,
         saved=saved,
+        prefinanced=prefinanced,
         total_interest=float(sum(r.interest for r in rows)),
         remaining_interest=float(sum(r.interest for r in rows if r.month >= today)),
+        credit_limit=credit_limit,
+        available=available,
     )
 
 
@@ -136,6 +153,7 @@ def _detail(f: Financing) -> FinancingDetailOut:
                 balance=float(r.balance),
                 phase=r.phase,
                 special=float(r.special),
+                drawn=float(r.drawn),
             )
             for r in schedule.rows
         ],
@@ -146,7 +164,7 @@ def _snapshot(f: Financing) -> dict[str, Any]:
     return {"name": f.name, "purpose": f.purpose, **f.params}
 
 
-def _validated(body: LoanIn | BausparIn) -> None:
+def _validated(body: LoanIn | BausparIn | CreditLineIn) -> None:
     try:
         validate(body)
     except FinancingError as e:

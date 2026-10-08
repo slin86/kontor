@@ -13,22 +13,24 @@ from kontor.core.clock import format_month, parse_month
 from kontor.domain.cashflow import FinancingFlow
 from kontor.domain.financing import (
     BausparParams,
+    CreditLineParams,
     FinancingError,
     LoanEvent,
     LoanParams,
     Schedule,
     bauspar_schedule,
+    credit_line_schedule,
     initial_payment,
     loan_schedule,
 )
 from kontor.models import Financing, FinancingKind
-from kontor.schemas.financing import BausparIn, LoanIn
+from kontor.schemas.financing import BausparIn, CreditLineIn, LoanIn
 
 PERCENT = Decimal(100)
 log = logging.getLogger(__name__)
 
 
-def to_params(body: LoanIn | BausparIn) -> dict[str, Any]:
+def to_params(body: LoanIn | BausparIn | CreditLineIn) -> dict[str, Any]:
     """Contract data as stored: decimals as strings, months as YYYY-MM, percents as entered."""
     if isinstance(body, LoanIn):
         rate = body.annual_rate_percent / PERCENT
@@ -47,13 +49,25 @@ def to_params(body: LoanIn | BausparIn) -> dict[str, Any]:
             ),
             "start": format_month(body.start),
         }
+    if isinstance(body, CreditLineIn):
+        return {
+            "limit": str(body.limit),
+            "balance": str(body.balance),
+            "annual_rate_percent": str(body.annual_rate_percent),
+            "monthly_payment": str(body.monthly_payment),
+            "start": format_month(body.start),
+        }
     return {
         "contract_sum": str(body.contract_sum),
         "monthly_saving": str(body.monthly_saving),
         "start": format_month(body.start),
         "allocation": format_month(body.allocation),
         "fee_percent": str(body.fee_percent),
+        "fee_amount": str(body.fee_amount) if body.fee_amount is not None else None,
         "deposit_rate_percent": str(body.deposit_rate_percent),
+        "prefinance_rate_percent": (
+            str(body.prefinance_rate_percent) if body.prefinance_rate_percent is not None else None
+        ),
         "loan_rate_percent": str(body.loan_rate_percent),
         "loan_payment": str(body.loan_payment),
     }
@@ -77,6 +91,17 @@ def schedule_for(f: Financing) -> Schedule:
             ),
             events,
         )
+    if f.kind == FinancingKind.CREDIT_LINE:
+        return credit_line_schedule(
+            CreditLineParams(
+                limit=Decimal(p["limit"]),
+                balance=Decimal(p["balance"]),
+                annual_rate=Decimal(p["annual_rate_percent"]) / PERCENT,
+                monthly_payment=Decimal(p["monthly_payment"]),
+                start=parse_month(p["start"]),
+            ),
+            events,
+        )
     return bauspar_schedule(
         BausparParams(
             contract_sum=Decimal(p["contract_sum"]),
@@ -84,7 +109,13 @@ def schedule_for(f: Financing) -> Schedule:
             start=parse_month(p["start"]),
             allocation=parse_month(p["allocation"]),
             fee_percent=Decimal(p["fee_percent"]) / PERCENT,
+            fee_amount=Decimal(p["fee_amount"]) if p.get("fee_amount") else None,
             deposit_rate=Decimal(p["deposit_rate_percent"]) / PERCENT,
+            prefinance_rate=(
+                Decimal(p["prefinance_rate_percent"]) / PERCENT
+                if p.get("prefinance_rate_percent") is not None
+                else None
+            ),
             loan_rate=Decimal(p["loan_rate_percent"]) / PERCENT,
             loan_payment=Decimal(p["loan_payment"]),
         ),
@@ -92,7 +123,7 @@ def schedule_for(f: Financing) -> Schedule:
     )
 
 
-def validate(body: LoanIn | BausparIn) -> None:
+def validate(body: LoanIn | BausparIn | CreditLineIn) -> None:
     """Raise ``FinancingError`` if the contract data cannot produce a schedule."""
     probe = Financing(
         kind=FinancingKind(body.kind),

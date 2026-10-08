@@ -1,5 +1,7 @@
 // Thin fetch wrapper: same-origin cookies plus the CSRF header on unsafe methods.
 
+import { validationMessage } from './validation'
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -31,7 +33,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     try {
       const body = await res.json()
       if (typeof body.detail === 'string') message = body.detail
-      else if (Array.isArray(body.detail)) message = body.detail.map((d: { msg: string }) => d.msg).join(', ')
+      else if (Array.isArray(body.detail)) message = validationMessage(body.detail)
     } catch {
       /* keep status text */
     }

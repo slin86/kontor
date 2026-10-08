@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import {
   financingApi,
   type BausparInput,
+  type CreditLineInput,
   type FinancingDetail,
   type FinancingEvent,
   type FinancingInput,
@@ -104,18 +105,86 @@ export function LoanFields({ initial }: { initial?: Initial }) {
   )
 }
 
-export function BausparFields({ initial }: { initial?: Initial }) {
+function FeeField({ initial }: { initial?: Initial }) {
+  const [unit, setUnit] = useState<'percent' | 'euro'>(initial?.fee_amount ? 'euro' : 'percent')
+  return (
+    <div className="block text-sm">
+      <label htmlFor="fee_value">Abschlussgebühr</label>
+      <div className="flex gap-2">
+        <input
+          id="fee_value"
+          name="fee_value"
+          key={unit}
+          required
+          inputMode="decimal"
+          pattern="[0-9]+([.,][0-9]+)?"
+          defaultValue={show(unit === 'euro' ? initial?.fee_amount : (initial?.fee_percent ?? '1'))}
+          className={input}
+        />
+        <select
+          name="fee_unit"
+          aria-label="Einheit der Abschlussgebühr"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value as 'percent' | 'euro')}
+          className={`${input} !w-auto`}
+        >
+          <option value="percent">% der Summe</option>
+          <option value="euro">Euro</option>
+        </select>
+      </div>
+      <span className="mt-1 block text-xs text-tinte-weich">
+        {unit === 'percent' ? 'Üblich sind 1 bis 2 Prozent, höchstens 5.' : 'Der Betrag, der im ersten Monat anfällt.'}
+      </span>
+    </div>
+  )
+}
+
+export function BausparFields({ initial, prefinanced }: { initial?: Initial; prefinanced?: boolean }) {
   return (
     <>
       <Field label="Bezeichnung" name="name" initial={initial?.name} />
-      <Field label="Bausparsumme in Euro" name="contract_sum" type="decimal" initial={initial?.contract_sum} />
+      <Field
+        label={prefinanced ? 'Bausparsumme und Darlehenssumme in Euro' : 'Bausparsumme in Euro'}
+        name="contract_sum"
+        type="decimal"
+        initial={initial?.contract_sum}
+        hint={prefinanced ? 'Die ganze Summe wird am ersten Tag ausgezahlt.' : undefined}
+      />
+      {prefinanced && (
+        <Field
+          label="Zins des Vorausdarlehens in Prozent pro Jahr"
+          name="prefinance_rate_percent"
+          type="decimal"
+          initial={initial?.prefinance_rate_percent}
+          hint="Bis zur Zuteilung zahlst du nur diese Zinsen, keine Tilgung."
+        />
+      )}
       <Field label="Sparbeitrag pro Monat in Euro" name="monthly_saving" type="decimal" initial={initial?.monthly_saving} />
       <Field label="Vertragsbeginn" name="start" type="month" initial={initial?.start} />
       <Field label="Zuteilung im Monat" name="allocation" type="month" initial={initial?.allocation} />
-      <Field label="Abschlussgebühr in Prozent der Summe" name="fee_percent" type="decimal" initial={initial?.fee_percent ?? '1'} />
+      <FeeField initial={initial} />
       <Field label="Guthabenzins in Prozent pro Jahr" name="deposit_rate_percent" type="decimal" initial={initial?.deposit_rate_percent ?? '0'} />
       <Field label="Darlehenszins in Prozent pro Jahr" name="loan_rate_percent" type="decimal" initial={initial?.loan_rate_percent} />
       <Field label="Rate in der Darlehensphase in Euro" name="loan_payment" type="decimal" initial={initial?.loan_payment} />
+    </>
+  )
+}
+
+export function CreditLineFields({ initial }: { initial?: Initial }) {
+  return (
+    <>
+      <Field label="Bezeichnung" name="name" initial={initial?.name} />
+      <Field label="Rahmen in Euro" name="limit" type="decimal" initial={initial?.limit} hint="Der Höchstbetrag, den du entnehmen darfst." />
+      <Field
+        label="Aktuell genutzt in Euro"
+        name="balance"
+        type="decimal"
+        initial={initial?.balance}
+        hint="Der Betrag, den du heute schuldest."
+      />
+      <Field label="Sollzins in Prozent pro Jahr" name="annual_rate_percent" type="decimal" initial={initial?.annual_rate_percent} />
+      <Field label="Monatliche Rate in Euro" name="monthly_payment" type="decimal" initial={initial?.monthly_payment} />
+      <Field label="Erste Rate im Monat" name="start" type="month" initial={initial?.start} />
     </>
   )
 }
@@ -136,6 +205,18 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
     if (f.get('initial_repayment_percent')) out.initial_repayment_percent = d('initial_repayment_percent')
     return out
   }
+  if (kind === 'credit_line') {
+    const out: CreditLineInput = {
+      kind: 'credit_line',
+      name: s('name'),
+      limit: d('limit'),
+      balance: d('balance'),
+      annual_rate_percent: d('annual_rate_percent'),
+      monthly_payment: d('monthly_payment'),
+      start: s('start'),
+    }
+    return out
+  }
   const out: BausparInput = {
     kind: 'building_savings',
     name: s('name'),
@@ -143,8 +224,9 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
     monthly_saving: d('monthly_saving'),
     start: s('start'),
     allocation: s('allocation'),
-    fee_percent: d('fee_percent'),
+    ...(f.get('fee_unit') === 'euro' ? { fee_amount: d('fee_value') } : { fee_percent: d('fee_value') }),
     deposit_rate_percent: d('deposit_rate_percent'),
+    ...(f.get('prefinance_rate_percent') ? { prefinance_rate_percent: d('prefinance_rate_percent') } : {}),
     loan_rate_percent: d('loan_rate_percent'),
     loan_payment: d('loan_payment'),
   }
@@ -163,16 +245,25 @@ function useFinancingMutation<V>(fn: (v: V) => Promise<FinancingDetail>, onDone:
   })
 }
 
+/** The form tabs. A Bausparfinanzierung is a Bauspar contract that has an advance loan. */
+type FormKind = FinancingKind | 'prefinanced'
+
+function KindFields({ kind, initial }: { kind: FormKind; initial?: Initial }) {
+  if (kind === 'loan') return <LoanFields initial={initial} />
+  if (kind === 'credit_line') return <CreditLineFields initial={initial} />
+  return <BausparFields initial={initial} prefinanced={kind === 'prefinanced'} />
+}
+
 export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail) => void }) {
   const { selected } = useMonth()
-  const [kind, setKind] = useState<FinancingKind>('loan')
+  const [kind, setKind] = useState<FormKind>('loan')
   const { people, me, selectedId } = usePerson()
   const [owner, setOwner] = useState<number | undefined>(selectedId ?? me?.id)
   const mutation = useFinancingMutation((v: FinancingInput) => financingApi.create(v, owner), onDone)
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    mutation.mutate(readInput(kind, new FormData(e.currentTarget)))
+    mutation.mutate(readInput(kind === 'prefinanced' ? 'building_savings' : kind, new FormData(e.currentTarget)))
   }
 
   const initial = { start: selected, allocation: addMonths(selected, 120) }
@@ -182,7 +273,9 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
         {(
           [
             ['loan', 'Kredit oder Immobilienfinanzierung'],
+            ['credit_line', 'Rahmenkredit'],
             ['building_savings', 'Bausparvertrag'],
+            ['prefinanced', 'Bausparfinanzierung'],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -208,7 +301,7 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
         </label>
       )}
       <div key={kind} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {kind === 'loan' ? <LoanFields initial={initial} /> : <BausparFields initial={initial} />}
+        <KindFields kind={kind} initial={initial} />
       </div>
       <div className="mt-5 flex items-center gap-2">
         <button type="submit" disabled={mutation.isPending} className={primary}>
@@ -234,10 +327,10 @@ export function CorrectionForm({ detail, onDone }: { detail: FinancingDetail; on
     <form onSubmit={submit} className="border-l-4 border-elbe bg-karte-tief px-4 py-4">
       <p className="mb-4 max-w-xl text-sm text-tinte-weich">
         Eine Korrektur ersetzt die Vertragsdaten und verändert den gesamten Tilgungsplan, auch die Vergangenheit. Nutze sie
-        für Eingabefehler. Spätere Änderungen wie Sondertilgungen trägst du als Ereignis ein.
+        für Eingabefehler. Spätere Änderungen wie Sondertilgungen, Einzahlungen oder Entnahmen trägst du als Ereignis ein.
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {detail.kind === 'loan' ? <LoanFields initial={detail.input} /> : <BausparFields initial={detail.input} />}
+        <KindFields kind={detail.prefinanced ? 'prefinanced' : detail.kind} initial={detail.input} />
         <Field label="Begründung (wird im Protokoll gespeichert)" name="reason" initial="" wide />
       </div>
       <div className="mt-4 flex items-center gap-2">
@@ -253,10 +346,23 @@ export function CorrectionForm({ detail, onDone }: { detail: FinancingDetail; on
   )
 }
 
-export const EVENT_LABEL: Record<FinancingEvent['kind'], string> = {
+const EVENT_LABEL: Record<FinancingEvent['kind'], string> = {
   special_repayment: 'Sondertilgung',
   payment_change: 'Neue monatliche Rate',
   rate_change: 'Neuer Zinssatz',
+  drawdown: 'Entnahme',
+}
+
+/** A credit line talks about deposits and withdrawals instead of special repayments. */
+export function eventLabel(kind: FinancingEvent['kind'], financing: FinancingKind): string {
+  if (financing === 'credit_line' && kind === 'special_repayment') return 'Einzahlung'
+  return EVENT_LABEL[kind]
+}
+
+function eventKinds(financing: FinancingKind): FinancingEvent['kind'][] {
+  return financing === 'credit_line'
+    ? ['special_repayment', 'drawdown', 'payment_change', 'rate_change']
+    : ['special_repayment', 'payment_change', 'rate_change']
 }
 
 export function EventForm({ detail }: { detail: FinancingDetail }) {
@@ -266,7 +372,7 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
     (v: { month: string; kind: FinancingEvent['kind']; value: string }) => financingApi.addEvent(detail.id, v),
     () => undefined,
   )
-  const firstMonth = detail.kind === 'loan' ? String(detail.input.start) : String(detail.input.allocation)
+  const firstMonth = detail.kind === 'building_savings' ? String(detail.input.allocation) : String(detail.input.start)
   const min = firstMonth > current ? firstMonth : current
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -280,9 +386,9 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
       <label className="block text-sm">
         Ereignis
         <select value={kind} onChange={(e) => setKind(e.target.value as FinancingEvent['kind'])} className={input}>
-          {Object.entries(EVENT_LABEL).map(([k, label]) => (
+          {eventKinds(detail.kind).map((k) => (
             <option key={k} value={k}>
-              {label}
+              {eventLabel(k, detail.kind)}
             </option>
           ))}
         </select>

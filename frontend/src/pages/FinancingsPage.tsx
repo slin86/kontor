@@ -4,7 +4,7 @@ import { usePerson } from '../person'
 import { useState } from 'react'
 
 import { ConfirmDelete } from '../components/ConfirmDelete'
-import { CorrectionForm, EVENT_LABEL, EventForm, NewFinancingForm } from '../components/FinancingForms'
+import { CorrectionForm, eventLabel, EventForm, NewFinancingForm } from '../components/FinancingForms'
 import { OutlookView } from '../components/OutlookView'
 import { ScheduleView } from '../components/ScheduleView'
 import { primary, input } from '../components/ui'
@@ -17,6 +17,8 @@ const KIND_LABEL: Record<string, string> = {
   consumer: 'Kredit',
   other: 'Kredit',
   building_savings: 'Bausparvertrag',
+  credit_line: 'Rahmenkredit',
+  prefinanced: 'Bausparfinanzierung',
 }
 
 const PHASE_LABEL: Record<Financing['phase'], string> = {
@@ -156,7 +158,18 @@ function Detail({ financing }: { financing: Financing }) {
   return (
     <div className="mt-4 space-y-8 border-l-4 border-tinte/20 pl-4 sm:pl-6">
       <div className="flex flex-wrap gap-x-10 gap-y-4">
-        {d.remaining_debt !== null && <Figure label="Restschuld" value={euro(d.remaining_debt)} />}
+        {d.remaining_debt !== null && (
+          <Figure
+            label={d.kind === 'credit_line' ? 'Aktuell genutzt' : d.prefinanced && d.phase === 'saving' ? 'Vorausdarlehen' : 'Restschuld'}
+            value={euro(d.remaining_debt)}
+          />
+        )}
+        {d.credit_limit !== null && d.available !== null && (
+          <>
+            <Figure label="Noch verfügbar" value={euro(d.available)} />
+            <Figure label="Rahmen" value={euro(d.credit_limit)} />
+          </>
+        )}
         {d.saved !== null && <Figure label="Angespart" value={euro(d.saved)} />}
         <Figure label="Rate pro Monat" value={euro(d.regular_payment, true)} />
         <Figure label="Zinsen bis zum Ende" value={euro(d.remaining_interest)} />
@@ -172,15 +185,16 @@ function Detail({ financing }: { financing: Financing }) {
         <h3 className="mb-2 text-base">Ereignisse</h3>
         {d.events.length === 0 ? (
           <p className="mb-4 max-w-xl text-sm text-tinte-weich">
-            Noch keine. Plane hier eine Sondertilgung, eine neue Rate oder einen neuen Zins nach Ende der Zinsbindung ein. Die
-            Vergangenheit bleibt dabei unverändert.
+            Noch keine. {d.kind === 'credit_line'
+              ? 'Trage hier Einzahlungen, Entnahmen, eine neue Rate oder einen neuen Zins ein. Die Vergangenheit bleibt dabei unverändert.'
+              : 'Plane hier eine Sondertilgung, eine neue Rate oder einen neuen Zins nach Ende der Zinsbindung ein. Die Vergangenheit bleibt dabei unverändert.'}
           </p>
         ) : (
           <ul className="mb-4 divide-y divide-tinte/15 text-sm">
             {d.events.map((e) => (
               <li key={e.id} className="flex flex-wrap items-baseline gap-x-4 py-2">
                 <span className="w-24 text-tinte-weich">{monthLabel(e.month)}</span>
-                <span>{EVENT_LABEL[e.kind]}</span>
+                <span>{eventLabel(e.kind, d.kind)}</span>
                 <span className="zahl ml-auto">{eventValue(e)}</span>
                 {e.locked ? (
                   <span className="w-20 text-right text-tinte-weich">abgeschlossen</span>
@@ -245,7 +259,7 @@ export function FinancingsPage() {
       <section aria-labelledby="vertraege">
         <div className="mb-2 flex items-baseline gap-4">
           <h2 id="vertraege" className="text-xl">
-            Kredite und Bausparverträge
+            Kredite, Rahmenkredite und Bausparverträge
           </h2>
           {!adding && (
             <button type="button" onClick={() => setAdding(true)} className={`ml-auto text-sm ${primary}`}>
@@ -281,7 +295,7 @@ export function FinancingsPage() {
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className="font-medium">{f.name}</span>
                 <span className="text-sm text-tinte-weich">
-                  {KIND_LABEL[f.kind === 'building_savings' ? 'building_savings' : (f.purpose ?? 'other')]} · {PHASE_LABEL[f.phase]}
+                  {KIND_LABEL[f.prefinanced ? 'prefinanced' : f.kind === 'loan' ? (f.purpose ?? 'other') : f.kind]} · {PHASE_LABEL[f.phase]}
                   {selectedId === null && people.length > 1 && <> · {people.find((p) => p.id === f.person_id)?.name}</>}
                 </span>
                 <span className="zahl ml-auto">
@@ -297,7 +311,12 @@ export function FinancingsPage() {
                 </button>
               </div>
               <div className="text-sm text-tinte-weich">
-                {f.remaining_debt !== null && <>Restschuld {euro(f.remaining_debt)} · </>}
+                {f.remaining_debt !== null && (
+                  <>
+                    {f.kind === 'credit_line' ? 'Genutzt' : 'Restschuld'} {euro(f.remaining_debt)} ·{' '}
+                  </>
+                )}
+                {f.available !== null && <>Frei {euro(f.available)} · </>}
                 {f.saved !== null && f.phase === 'saving' && <>Angespart {euro(f.saved)} · </>}
                 {f.phase === 'finished' ? 'abbezahlt' : `ohne Zahlung ab ${monthLabel(f.end_month)}`}
               </div>
