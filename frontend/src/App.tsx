@@ -4,6 +4,7 @@ import { useAuth } from './auth'
 import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
 import { AccountPage } from './pages/AccountPage'
+import { WealthPage } from './pages/WealthPage'
 import { ActualPage } from './pages/ActualPage'
 import { CashflowShell } from './pages/cashflow/CashflowShell'
 import { DetailsView } from './pages/cashflow/DetailsView'
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="finanzierungen" element={<FinancingsPage />} />
         <Route path="depot" element={<DepotPage />} />
         <Route path="ist" element={<ActualPage />} />
+        <Route path="vermoegen" element={<WealthPage />} />
         <Route path="instrumente" element={<InstrumentsPage />} />
         <Route path="konto" element={<AccountPage />} />
         <Route path="haushalt" element={<HouseholdPage />} />
