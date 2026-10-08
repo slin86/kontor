@@ -1,3 +1,4 @@
+import { euro, FREQUENCY_LABEL } from '../../format'
 import { ExpensePie } from '../../components/ExpensePie'
 import { GroupBars } from '../../components/GroupBars'
 import { SeriesView } from '../../components/SeriesView'
@@ -9,6 +10,11 @@ export function DetailsView() {
   const { selected } = useMonth()
   const { items, summary, series } = useCashflowData()
   const s = summary.data
+  const reserves = (items.data ?? []).filter(
+    (i) => i.kind === 'expense' && !i.spread && !i.transfer_to_id && i.active && i.active.frequency !== 'monthly',
+  )
+  const reserveTotal = reserves.reduce((sum, i) => sum + i.active!.monthly, 0)
+  const reserveBooked = reserves.reduce((sum, i) => sum + i.booked, 0)
   const hasLumps = items.data?.some((i) => !i.spread && i.active && i.active.frequency !== 'monthly') ?? false
 
   if (items.data?.length === 0) {
@@ -27,6 +33,34 @@ export function DetailsView() {
           {hasLumps && ' Posten ohne Aufteilung zählen nur in ihrem Fälligkeitsmonat, das zeigen die Ausschläge.'}
         </p>
       </section>
+
+      {reserves.length > 0 && (
+        <section aria-labelledby="ruecklage">
+          <h2 id="ruecklage" className="text-xl">
+            Rücklage pro Monat
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-tinte-weich">
+            Diese Posten zählen nur in ihrem Fälligkeitsmonat. Legst du jeden Monat <strong className="zahl">{euro(reserveTotal)}</strong> zurück,
+            ist das Geld da, wenn sie fällig werden.
+          </p>
+          <ul className="mt-3 max-w-2xl divide-y divide-tinte/15 text-sm">
+            {reserves.map((i) => (
+              <li key={i.id} className="flex flex-wrap items-baseline gap-x-4 py-2">
+                <span className="font-medium">{i.name}</span>
+                <span className="text-tinte-weich">
+                  {euro(i.active!.amount, true)} {FREQUENCY_LABEL[i.active!.frequency]}
+                </span>
+                <span className="zahl ml-auto">{euro(i.active!.monthly, true)} pro Monat</span>
+              </li>
+            ))}
+          </ul>
+          {s && (
+            <p className="mt-3 text-sm text-tinte-weich">
+              Nach Rücklagen bleiben im Schnitt <span className="zahl font-medium text-tinte">{euro(s.balance + reserveBooked - reserveTotal)}</span> pro Monat.
+            </p>
+          )}
+        </section>
+      )}
 
       {s && s.expense_groups.length > 0 && (
         <div className="grid gap-x-12 gap-y-10 lg:grid-cols-2">
