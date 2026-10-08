@@ -62,23 +62,31 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # one tag bump at a time, so concurrent merges do not race on the same file
+    concurrency:
+      group: release
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Point the homelab overlay at the new images
-        working-directory: deploy/k8s/overlays/homelab
+      - name: Point the homelab overlay at the new images and push
         run: |
           tag='${{ needs.publish.outputs.tag }}'
           kustomize_version=v5.4.3
           curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${kustomize_version}/kustomize_${kustomize_version}_linux_amd64.tar.gz" | tar -xz -C /tmp
-          /tmp/kustomize edit set image \
-            ghcr.io/slin86/kontor-api=ghcr.io/slin86/kontor-api:${tag} \
-            ghcr.io/slin86/kontor-web=ghcr.io/slin86/kontor-web:${tag}
-      - name: Commit the new tag
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy/k8s/overlays/homelab/kustomization.yaml
-          git diff --cached --quiet && exit 0
-          git commit -m "Deploy ${{ needs.publish.outputs.tag }} [skip ci]"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          # The file only holds generated tags, so on a race we start over from the latest main
+          # and redo the edit instead of rebasing (which conflicts on the tag lines).
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            (cd deploy/k8s/overlays/homelab && /tmp/kustomize edit set image \
+              ghcr.io/slin86/kontor-api=ghcr.io/slin86/kontor-api:${tag} \
+              ghcr.io/slin86/kontor-web=ghcr.io/slin86/kontor-web:${tag})
+            git add deploy/k8s/overlays/homelab/kustomization.yaml
+            git diff --cached --quiet && exit 0
+            git commit -m "Deploy ${tag} [skip ci]"
+            git push origin HEAD:main && exit 0
+            sleep $((attempt * 3))
+          done
+          exit 1
