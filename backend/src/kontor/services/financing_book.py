@@ -128,20 +128,22 @@ class FinancingBook:
         return out
 
 
-def load_financings(db: Session, household_id: int) -> list[Financing]:
+def load_financings(
+    db: Session, household_id: int, person_id: int | None = None
+) -> list[Financing]:
+    stmt = select(Financing).where(Financing.household_id == household_id)
+    if person_id is not None:
+        stmt = stmt.where(Financing.person_id == person_id)
     return list(
         db.scalars(
-            select(Financing)
-            .where(Financing.household_id == household_id)
-            .options(selectinload(Financing.events))
-            .order_by(Financing.name, Financing.id)
+            stmt.options(selectinload(Financing.events)).order_by(Financing.name, Financing.id)
         )
     )
 
 
-def load_book(db: Session, household_id: int) -> FinancingBook:
+def load_book(db: Session, household_id: int, person_id: int | None = None) -> FinancingBook:
     items: list[tuple[Financing, Schedule]] = []
-    for f in load_financings(db, household_id):
+    for f in load_financings(db, household_id, person_id):
         try:
             items.append((f, schedule_for(f)))
         except FinancingError:

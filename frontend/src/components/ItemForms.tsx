@@ -5,6 +5,7 @@ import { cashflowApi, type Category, type Frequency, type Item } from '../cashfl
 import { FREQUENCY_LABEL } from '../format'
 import { useMonth } from '../month'
 import { addMonths } from '../monthUtils'
+import { usePerson } from '../person'
 import { input, primary, secondary } from './ui'
 
 
@@ -46,7 +47,11 @@ function parseAmount(raw: FormDataEntryValue | null): string {
 
 export function NewItemForm({ categories, onDone }: { categories: Category[]; onDone: () => void }) {
   const { selected } = useMonth()
+  const { people, me, selectedId } = usePerson()
+  const [owner, setOwner] = useState<number | undefined>(selectedId ?? me?.id)
+  const [transfer, setTransfer] = useState(false)
   const mutation = useCashflowMutation(cashflowApi.createItem, onDone)
+  const others = people.filter((p) => p.id !== owner)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const label = (c: Category) => (c.parent_id ? `${byId.get(c.parent_id)?.name} › ${c.name}` : c.name)
 
@@ -55,7 +60,10 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
     const f = new FormData(e.currentTarget)
     mutation.mutate({
       name: String(f.get('name')).trim(),
-      category_id: Number(f.get('category_id')),
+      person_id: owner,
+      ...(transfer
+        ? { transfer_to_id: Number(f.get('transfer_to_id')) }
+        : { category_id: Number(f.get('category_id')) }),
       amount: parseAmount(f.get('amount')),
       frequency: String(f.get('frequency')) as Frequency,
       valid_from: String(f.get('valid_from')),
@@ -68,6 +76,36 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
         Bezeichnung
         <input name="name" required maxLength={120} className={input} />
       </label>
+      {people.length > 1 && (
+        <label className="block text-sm">
+          Gehört zu
+          <select value={owner ?? ''} onChange={(e) => setOwner(Number(e.target.value))} className={input}>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {people.length > 1 && (
+        <label className="flex items-center gap-2 self-end pb-2 text-sm">
+          <input type="checkbox" checked={transfer} onChange={(e) => setTransfer(e.target.checked)} />
+          Übertrag an eine andere Person
+        </label>
+      )}
+      {transfer ? (
+        <label className="block text-sm">
+          Empfänger
+          <select name="transfer_to_id" required className={input} defaultValue={others[0]?.id}>
+            {others.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
       <label className="block text-sm">
         Kategorie
         <select name="category_id" required className={input} defaultValue="">
@@ -87,6 +125,7 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
           ))}
         </select>
       </label>
+      )}
       <label className="block text-sm">
         Betrag in Euro
         <input name="amount" required inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" className={input} />

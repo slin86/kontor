@@ -68,13 +68,19 @@ class ItemOut(BaseModel):
     category_id: int
     category_name: str
     kind: CategoryKind
+    person_id: int
+    transfer_to_id: int | None = None
+    transfer_to_name: str | None = None
+    incoming: bool = False  # a transfer seen from the receiving person
     active: VersionOut | None  # version valid in the requested month
     versions: list[VersionOut]
 
 
 class ItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    category_id: int
+    category_id: int | None = None  # optional for transfers, which get their own category
+    person_id: int | None = None  # defaults to the signed-in user's person
+    transfer_to_id: int | None = None  # makes the item a transfer to this person
     amount: Money
     frequency: Frequency = Frequency.MONTHLY
     valid_from: Month
@@ -93,6 +99,7 @@ class ItemEnd(BaseModel):
 class ItemRename(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     category_id: int | None = None
+    person_id: int | None = None
 
 
 class VersionCorrection(BaseModel):

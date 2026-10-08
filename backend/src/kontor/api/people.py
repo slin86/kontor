@@ -2,10 +2,10 @@
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from kontor.api.deps import CurrentUser, DbSession
-from kontor.models import Instrument, Person
+from kontor.models import CashflowItem, Financing, Instrument, Person
 from kontor.services.audit import record as audit
 from kontor.services.people import add_person, get_person, list_people, own_person
 
@@ -61,6 +61,17 @@ def delete_person(person_id: int, user: CurrentUser, db: DbSession) -> None:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "Diese Person hat ein Konto. Entferne zuerst das Mitglied im Haushalt.",
+        )
+    booked = db.scalar(
+        select(func.count(CashflowItem.id)).where(
+            or_(CashflowItem.person_id == person.id, CashflowItem.transfer_to_id == person.id)
+        )
+    ) or db.scalar(select(func.count(Financing.id)).where(Financing.person_id == person.id))
+    if booked:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Die Person hat noch Cashflow-Posten, Übertragungen oder Finanzierungen. "
+            "Lösche oder verschiebe sie zuerst.",
         )
     if db.scalar(select(func.count(Instrument.id)).where(Instrument.person_id == person.id)):
         raise HTTPException(

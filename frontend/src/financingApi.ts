@@ -1,10 +1,12 @@
 import { api } from './api'
+import { personQuery } from './peopleApi'
 
 export type FinancingKind = 'loan' | 'building_savings'
 export type Phase = 'not_started' | 'saving' | 'loan' | 'finished'
 
 export interface Financing {
   id: number
+  person_id: number
   kind: FinancingKind
   name: string
   purpose: string | null
@@ -95,9 +97,10 @@ export type BausparInput = {
 export type FinancingInput = LoanInput | BausparInput
 
 export const financingApi = {
-  list: () => api<Financing[]>('/financings'),
+  list: (person: number | null) => api<Financing[]>(`/financings${personQuery(person, true)}`),
   get: (id: number) => api<FinancingDetail>(`/financings/${id}`),
-  create: (json: FinancingInput) => api<FinancingDetail>('/financings', { method: 'POST', json }),
+  create: (json: FinancingInput, person?: number) =>
+    api<FinancingDetail>(`/financings${personQuery(person ?? null, true)}`, { method: 'POST', json }),
   remove: (id: number) => api<void>(`/financings/${id}`, { method: 'DELETE' }),
   correct: (id: number, json: { reason: string; data: FinancingInput }) =>
     api<FinancingDetail>(`/financings/${id}/correct`, { method: 'POST', json }),
@@ -105,6 +108,6 @@ export const financingApi = {
     api<FinancingDetail>(`/financings/${id}/events`, { method: 'POST', json }),
   removeEvent: (id: number, eventId: number) =>
     api<FinancingDetail>(`/financings/${id}/events/${eventId}`, { method: 'DELETE' }),
-  outlook: (years: number, incomeGrowth: number, expenseGrowth: number) =>
-    api<Outlook>(`/outlook?years=${years}&income_growth=${incomeGrowth}&expense_growth=${expenseGrowth}`),
+  outlook: (years: number, incomeGrowth: number, expenseGrowth: number, person: number | null) =>
+    api<Outlook>(`/outlook?years=${years}&income_growth=${incomeGrowth}&expense_growth=${expenseGrowth}${personQuery(person)}`),
 }

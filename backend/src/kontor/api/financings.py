@@ -1,9 +1,9 @@
 """Financings: loans and building-society contracts with dated events and audited corrections."""
 
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from kontor.api.deps import CurrentUser, DbSession
@@ -28,6 +28,7 @@ from kontor.services.financing_book import (
     to_params,
     validate,
 )
+from kontor.services.people import get_person, own_person
 
 router = APIRouter(prefix="/api/financings", tags=["financings"])
 
@@ -91,6 +92,7 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
 
     return FinancingOut(
         id=f.id,
+        person_id=f.person_id,
         kind=f.kind.value,
         name=f.name,
         purpose=f.purpose,
@@ -151,19 +153,33 @@ def _validated(body: LoanIn | BausparIn) -> None:
         raise HTTPException(422, str(e)) from e
 
 
+PersonParam = Annotated[
+    int | None, Query(description="Only this person's financings; all when left out")
+]
+
+
 @router.get("", response_model=list[FinancingOut])
-def list_financings(user: CurrentUser, db: DbSession) -> list[FinancingOut]:
+def list_financings(
+    user: CurrentUser, db: DbSession, person: PersonParam = None
+) -> list[FinancingOut]:
+    scope = get_person(db, user.household_id, person).id if person is not None else None
     out: list[FinancingOut] = []
-    for f in load_financings(db, user.household_id):
+    for f in load_financings(db, user.household_id, scope):
         out.append(_summary(f, _schedule(f)))
     return out
 
 
 @router.post("", response_model=FinancingDetailOut, status_code=status.HTTP_201_CREATED)
-def create_financing(body: FinancingIn, user: CurrentUser, db: DbSession) -> FinancingDetailOut:
+def create_financing(
+    body: FinancingIn, user: CurrentUser, db: DbSession, person: PersonParam = None
+) -> FinancingDetailOut:
     _validated(body)
+    owner = (
+        get_person(db, user.household_id, person) if person is not None else own_person(db, user)
+    )
     f = Financing(
         household_id=user.household_id,
+        person_id=owner.id,
         kind=FinancingKind(body.kind),
         name=body.name.strip(),
         purpose=body.purpose if isinstance(body, LoanIn) else None,
@@ -186,6 +202,26 @@ def create_financing(body: FinancingIn, user: CurrentUser, db: DbSession) -> Fin
 @router.get("/{financing_id}", response_model=FinancingDetailOut)
 def get_financing(financing_id: int, user: CurrentUser, db: DbSession) -> FinancingDetailOut:
     return _detail(_get(db, user, financing_id))
+
+
+@router.put("/{financing_id}/person", response_model=FinancingDetailOut)
+def change_owner(
+    financing_id: int, person: Annotated[int, Query()], user: CurrentUser, db: DbSession
+) -> FinancingDetailOut:
+    f = _get(db, user, financing_id)
+    owner = get_person(db, user.household_id, person)
+    before = f.person_id
+    f.person_id = owner.id
+    audit(
+        db,
+        user,
+        "update",
+        "financing",
+        f.id,
+        before={"person_id": before},
+        after={"person_id": owner.id},
+    )
+    return _detail(f)
 
 
 @router.delete("/{financing_id}", status_code=status.HTTP_204_NO_CONTENT)
