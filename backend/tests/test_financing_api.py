@@ -528,14 +528,22 @@ def test_payout_event_adds_a_later_payout(client: TestClient) -> None:
     assert late.status_code == 422
 
 
-def test_payout_event_needs_staged_payouts(client: TestClient) -> None:
+def test_first_payout_event_switches_an_unstaged_contract_to_staged_payouts(
+    client: TestClient,
+) -> None:
     _login(client)
     f = _create(client, {**STAGED, "payouts": None})
-    r = client.post(
-        f"/api/financings/{f['id']}/events",
-        json={"month": "2027-05", "kind": "payout", "value": "1"},
-    )
-    assert r.status_code == 422 and "Vertragsdaten" in r.json()["detail"]
+    assert f["remaining_debt"] == 61000  # everything counts as paid out on day 1
+    url = f"/api/financings/{f['id']}/events"
+    # payouts are usually known only afterwards, so a closed month is fine
+    r = client.post(url, json={"month": "2026-02", "kind": "payout", "value": "26000"})
+    assert r.status_code == 200, r.text
+    detail = r.json()
+    assert detail["remaining_debt"] == 26000
+    interest = {x["month"]: x["interest"] for x in detail["schedule"] if x["phase"] == "saving"}
+    assert interest["2026-01"] == 0 and interest["2026-02"] == 130
+    event = detail["events"][0]
+    assert client.delete(f"{url}/{event['id']}").status_code == 200
 
 
 def test_extra_deposit_counts_towards_the_saved_sum(client: TestClient) -> None:

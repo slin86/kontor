@@ -25,6 +25,7 @@ from kontor.schemas.financing import (
 )
 from kontor.services.audit import record as audit
 from kontor.services.financing_book import (
+    SAVING_PHASE_EVENTS,
     all_payouts,
     load_financings,
     schedule_for,
@@ -92,7 +93,7 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
         # the Bauspar loan only exists after allocation; an advance loan is paid out on day 1
         paid_out = (
             sum((a for m, a in all_payouts(f) if m <= today), Decimal(0))
-            if f.params.get("payouts")
+            if all_payouts(f)
             else Decimal(f.params["contract_sum"])
         )
         remaining_debt = float(paid_out) if prefinanced and phase == "saving" else None
@@ -137,7 +138,7 @@ def _event_out(e: FinancingEvent) -> EventOut:
         month=e.month,
         kind=e.kind,
         value=float(value),
-        locked=e.month < current_month(),
+        locked=e.month < current_month() and e.kind not in SAVING_PHASE_EVENTS,
     )
 
 
@@ -298,12 +299,6 @@ def _check_payout(f: Financing, month: date, amount: Decimal) -> None:
     """A further payout of the advance loan has to fit between contract start and allocation."""
     if f.kind != FinancingKind.BUILDING_SAVINGS or f.params.get("prefinance_rate_percent") is None:
         raise HTTPException(422, "Auszahlungen gibt es nur bei einer Bausparfinanzierung.")
-    if not f.params.get("payouts"):
-        raise HTTPException(
-            422,
-            "Dieser Vertrag zahlt die ganze Summe am ersten Tag aus. Trage die einzelnen "
-            "Auszahlungen unter „Vertragsdaten korrigieren“ ein.",
-        )
     if month < parse_month(str(f.params["start"])) or month >= parse_month(
         str(f.params["allocation"])
     ):
@@ -319,7 +314,8 @@ def _check_payout(f: Financing, month: date, amount: Decimal) -> None:
 def add_event(
     financing_id: int, body: EventIn, user: CurrentUser, db: DbSession
 ) -> FinancingDetailOut:
-    if body.month < current_month():
+    # payouts and extra deposits are usually only known afterwards, so they may lie in the past
+    if body.month < current_month() and body.kind not in SAVING_PHASE_EVENTS:
         raise HTTPException(status.HTTP_409_CONFLICT, LOCKED_EVENT_MESSAGE)
     f = _get(db, user, financing_id)
     if body.kind == "payout":
@@ -358,7 +354,7 @@ def remove_event(
     event = next((e for e in f.events if e.id == event_id), None)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ereignis nicht gefunden")
-    if event.month < current_month():
+    if event.month < current_month() and event.kind not in SAVING_PHASE_EVENTS:
         raise HTTPException(status.HTTP_409_CONFLICT, LOCKED_EVENT_MESSAGE)
     snapshot = {"month": format_month(event.month), "kind": event.kind, "value": str(event.value)}
     f.events.remove(event)
