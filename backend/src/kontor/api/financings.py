@@ -1,5 +1,6 @@
 """Financings: loans and building-society contracts with dated events and audited corrections."""
 
+from datetime import date
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -24,6 +25,7 @@ from kontor.schemas.financing import (
 )
 from kontor.services.audit import record as audit
 from kontor.services.financing_book import (
+    all_payouts,
     load_financings,
     schedule_for,
     to_params,
@@ -88,10 +90,9 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
     )
     if f.kind == FinancingKind.BUILDING_SAVINGS and phase in ("not_started", "saving"):
         # the Bauspar loan only exists after allocation; an advance loan is paid out on day 1
-        payouts = f.params.get("payouts")
         paid_out = (
-            sum(Decimal(x["amount"]) for x in payouts if parse_month(x["month"]) <= today)
-            if payouts
+            sum((a for m, a in all_payouts(f) if m <= today), Decimal(0))
+            if f.params.get("payouts")
             else Decimal(f.params["contract_sum"])
         )
         remaining_debt = float(paid_out) if prefinanced and phase == "saving" else None
@@ -282,6 +283,27 @@ def correct_financing(
     return _detail(f)
 
 
+def _check_payout(f: Financing, month: date, amount: Decimal) -> None:
+    """A further payout of the advance loan has to fit between contract start and allocation."""
+    if f.kind != FinancingKind.BUILDING_SAVINGS or f.params.get("prefinance_rate_percent") is None:
+        raise HTTPException(422, "Auszahlungen gibt es nur bei einer Bausparfinanzierung.")
+    if not f.params.get("payouts"):
+        raise HTTPException(
+            422,
+            "Dieser Vertrag zahlt die ganze Summe am ersten Tag aus. Trage die einzelnen "
+            "Auszahlungen unter „Vertragsdaten korrigieren“ ein.",
+        )
+    if month < parse_month(str(f.params["start"])) or month >= parse_month(
+        str(f.params["allocation"])
+    ):
+        raise HTTPException(
+            422, "Die Auszahlung muss zwischen Vertragsbeginn und Zuteilung liegen."
+        )
+    total = sum((a for _, a in all_payouts(f)), Decimal(0))
+    if total + amount > Decimal(f.params["contract_sum"]):
+        raise HTTPException(422, "Die Auszahlungen dürfen die Darlehenssumme nicht übersteigen.")
+
+
 @router.post("/{financing_id}/events", response_model=FinancingDetailOut)
 def add_event(
     financing_id: int, body: EventIn, user: CurrentUser, db: DbSession
@@ -289,7 +311,9 @@ def add_event(
     if body.month < current_month():
         raise HTTPException(status.HTTP_409_CONFLICT, LOCKED_EVENT_MESSAGE)
     f = _get(db, user, financing_id)
-    if body.month < parse_month(_loan_start(f)):
+    if body.kind == "payout":
+        _check_payout(f, body.month, body.value)
+    elif body.month < parse_month(_loan_start(f)):
         raise HTTPException(422, "Das Ereignis liegt vor dem Beginn der Darlehensphase.")
     if body.kind == "rate_change" and body.value > 30:
         raise HTTPException(422, "Der Zins darf höchstens 30 % betragen.")
@@ -299,7 +323,7 @@ def add_event(
     f.events.append(event)
     db.flush()
     schedule = _schedule(f)
-    if body.month >= schedule.end_month:
+    if body.kind != "payout" and body.month >= schedule.end_month:
         raise HTTPException(422, "Die Finanzierung ist zu diesem Zeitpunkt bereits abbezahlt.")
     audit(
         db,

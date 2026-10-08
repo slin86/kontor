@@ -39,7 +39,7 @@ export interface ScheduleRow {
 export interface FinancingEvent {
   id: number
   month: string
-  kind: 'special_repayment' | 'payment_change' | 'rate_change' | 'drawdown'
+  kind: 'special_repayment' | 'payment_change' | 'rate_change' | 'drawdown' | 'payout'
   value: number // euros, or percent per year for rate changes
   locked: boolean
 }
