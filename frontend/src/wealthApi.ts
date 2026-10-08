@@ -35,7 +35,7 @@ export interface AssetInput {
 export interface WealthSeries {
   key: string
   name: string
-  group: 'depot' | 'bauspar' | 'asset' | 'debt'
+  group: 'depot' | 'bauspar' | 'property' | 'asset' | 'debt'
 }
 
 export interface WealthPoint {

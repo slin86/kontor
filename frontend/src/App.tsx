@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
 import { AccountPage } from './pages/AccountPage'
 import { WealthPage } from './pages/WealthPage'
+import { PropertiesPage } from './pages/PropertiesPage'
 import { ActualPage } from './pages/ActualPage'
 import { CashflowShell } from './pages/cashflow/CashflowShell'
 import { DetailsView } from './pages/cashflow/DetailsView'
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="depot" element={<DepotPage />} />
         <Route path="ist" element={<ActualPage />} />
         <Route path="vermoegen" element={<WealthPage />} />
+        <Route path="immobilien" element={<PropertiesPage />} />
         <Route path="instrumente" element={<InstrumentsPage />} />
         <Route path="konto" element={<AccountPage />} />
         <Route path="haushalt" element={<HouseholdPage />} />

@@ -13,7 +13,7 @@ from kontor.core.clock import add_months, current_month, month_range
 from kontor.domain import cashflow as cf
 from kontor.domain import depot as dep
 from kontor.domain.financing import Schedule
-from kontor.models import Asset, AssetKind, Financing, FinancingKind
+from kontor.models import Asset, AssetKind, Financing, FinancingKind, Property
 from kontor.schemas.wealth import (
     AssetIn,
     AssetOut,
@@ -24,6 +24,7 @@ from kontor.schemas.wealth import (
 from kontor.services.audit import record as audit
 from kontor.services.financing_book import all_payouts, load_book
 from kontor.services.people import get_person, own_person
+from kontor.services.properties import property_value
 
 router = APIRouter(prefix="/api", tags=["wealth"])
 
@@ -159,6 +160,10 @@ def wealth(
     if scope is not None:
         query = query.filter(Asset.person_id == scope)
     assets = query.order_by(Asset.name, Asset.id).all()
+    pquery = db.query(Property).filter(Property.household_id == user.household_id)
+    if scope is not None:
+        pquery = pquery.filter(Property.person_id == scope)
+    properties = pquery.order_by(Property.name, Property.id).all()
     book = load_book(db, user.household_id, scope)
 
     series: list[WealthSeries] = [WealthSeries(key="depot", name="Depot", group="depot")]
@@ -167,6 +172,9 @@ def wealth(
             series.append(
                 WealthSeries(key=f"saved:{f.id}", name=f"Bausparguthaben {f.name}", group="bauspar")
             )
+    series += [
+        WealthSeries(key=f"property:{p.id}", name=p.name, group="property") for p in properties
+    ]
     series += [WealthSeries(key=f"asset:{a.id}", name=a.name, group="asset") for a in assets]
     series += [WealthSeries(key=f"debt:{f.id}", name=f.name, group="debt") for f, _ in book.items]
 
@@ -180,6 +188,7 @@ def wealth(
             for f, s in book.items
             if f.kind == FinancingKind.BUILDING_SAVINGS
         ]
+        row += [cf.cents(property_value(p, m) * Decimal(p.share_percent) / 100) for p in properties]
         row += [asset_value(a, m, today) for a in assets]
         row += [financing_position(f, s, m)[1] for f, s in book.items]
         raw.append([dep.deflate(v, infl, ahead) for v in row])

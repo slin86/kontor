@@ -34,7 +34,7 @@ class AssetOut(BaseModel):
 class WealthSeries(BaseModel):
     key: str
     name: str
-    group: Literal["depot", "bauspar", "asset", "debt"]
+    group: Literal["depot", "bauspar", "property", "asset", "debt"]
 
 
 class WealthPoint(BaseModel):

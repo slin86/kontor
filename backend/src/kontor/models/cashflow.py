@@ -58,6 +58,10 @@ class CashflowItem(Base):
     transfer_to_id: Mapped[int | None] = mapped_column(
         ForeignKey("persons.id"), nullable=True, index=True
     )
+    # rent, running costs etc. of a property link the item to it
+    property_id: Mapped[int | None] = mapped_column(
+        ForeignKey("properties.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(120))
     # Quarterly/semiannual/yearly items: True spreads the cost evenly over the months, False
     # books the full amount only in the month it falls due.

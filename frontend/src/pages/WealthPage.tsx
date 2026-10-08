@@ -133,8 +133,8 @@ export function WealthPage() {
         )}
         {data && empty && (
           <p className="mt-6 max-w-xl text-tinte-weich">
-            Noch nichts zu zeigen. Lege ein Depot oder eine Finanzierung an oder trage unten Vermögenswerte wie Tagesgeld oder eine
-            Immobilie ein.
+            Noch nichts zu zeigen. Lege ein Depot, eine Finanzierung oder eine Immobilie an oder trage unten Vermögenswerte wie
+            Tagesgeld ein.
           </p>
         )}
       </section>
@@ -202,8 +202,8 @@ export function WealthPage() {
           )}
         </div>
         <p className="mb-4 max-w-2xl text-sm text-tinte-weich">
-          Depot, Bausparguthaben und Finanzierungen kommen automatisch aus den anderen Bereichen. Hier trägst du dazu, was sonst noch zählt:
-          Konten, Immobilien, Fahrzeuge. Der Wert gilt ab dem Stand-Monat und entwickelt sich mit dem Prozentsatz pro Jahr.
+          Depot, Bausparguthaben, Finanzierungen und Immobilien kommen automatisch aus den anderen Bereichen. Hier trägst du dazu, was
+          sonst noch zählt: Konten, Fahrzeuge. Der Wert gilt ab dem Stand-Monat und entwickelt sich mit dem Prozentsatz pro Jahr.
         </p>
         {adding && (
           <div className="mb-8">

@@ -58,7 +58,9 @@ export function AssetForm({ asset, onDone }: { asset?: Asset; onDone: () => void
       <label className="block text-sm">
         Art
         <select value={kind} onChange={(e) => pickKind(e.target.value as AssetKind)} className={input}>
-          {Object.entries(ASSET_LABEL).map(([k, label]) => (
+          {Object.entries(ASSET_LABEL)
+            .filter(([k]) => k !== 'property' || asset?.kind === 'property')
+            .map(([k, label]) => (
             <option key={k} value={k}>
               {label}
             </option>
