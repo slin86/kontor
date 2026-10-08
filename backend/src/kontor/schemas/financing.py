@@ -97,8 +97,10 @@ class FinancingCorrection(BaseModel):
 
 class EventIn(BaseModel):
     month: Month
-    kind: Literal["special_repayment", "payment_change", "rate_change", "drawdown"]
-    # euros for special_repayment, drawdown and payment_change, percent per year for rate_change
+    kind: Literal[
+        "special_repayment", "payment_change", "rate_change", "drawdown", "payout", "deposit"
+    ]
+    # euros, except rate_change: percent per year
     value: Annotated[Decimal, Field(gt=0, le=100_000_000)]
 
 

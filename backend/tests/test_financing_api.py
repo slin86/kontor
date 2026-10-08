@@ -510,3 +510,45 @@ def test_zero_percent_financing(client: TestClient) -> None:
     assert len(f["schedule"]) == 12
     with_interest = client.post("/api/financings", json={**body, "annual_rate_percent": "1"})
     assert with_interest.status_code == 422
+
+
+def test_payout_event_adds_a_later_payout(client: TestClient) -> None:
+    _login(client)
+    staged = {**STAGED, "payouts": [{"month": "2026-02", "amount": "26000"}]}
+    f = _create(client, staged)
+    url = f"/api/financings/{f['id']}/events"
+    r = client.post(url, json={"month": "2027-05", "kind": "payout", "value": "15000"})
+    assert r.status_code == 200, r.text
+    interest = {x["month"]: x["interest"] for x in r.json()["schedule"] if x["phase"] == "saving"}
+    assert interest["2027-04"] == 130
+    assert interest["2027-05"] == 205  # 41000 * 6 % / 12
+    too_much = client.post(url, json={"month": "2027-06", "kind": "payout", "value": "30000"})
+    assert too_much.status_code == 422
+    late = client.post(url, json={"month": "2036-02", "kind": "payout", "value": "1000"})
+    assert late.status_code == 422
+
+
+def test_payout_event_needs_staged_payouts(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, {**STAGED, "payouts": None})
+    r = client.post(
+        f"/api/financings/{f['id']}/events",
+        json={"month": "2027-05", "kind": "payout", "value": "1"},
+    )
+    assert r.status_code == 422 and "Vertragsdaten" in r.json()["detail"]
+
+
+def test_extra_deposit_counts_towards_the_saved_sum(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, BAUSPAR)
+    base_loan = next(r for r in f["schedule"] if r["phase"] == "loan")
+    url = f"/api/financings/{f['id']}/events"
+    r = client.post(url, json={"month": "2027-01", "kind": "deposit", "value": "5000"})
+    assert r.status_code == 200, r.text
+    rows = r.json()["schedule"]
+    jan = next(x for x in rows if x["month"] == "2027-01")
+    assert jan["saving"] >= 5000  # shows up as paid in that month
+    loan = next(x for x in rows if x["phase"] == "loan")
+    assert loan["balance"] + loan["principal"] < base_loan["balance"] + base_loan["principal"]
+    after_loan = client.post(url, json={"month": "2099-01", "kind": "deposit", "value": "1"})
+    assert after_loan.status_code == 422

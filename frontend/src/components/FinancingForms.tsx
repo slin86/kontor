@@ -442,6 +442,8 @@ const EVENT_LABEL: Record<FinancingEvent['kind'], string> = {
   payment_change: 'Neue monatliche Rate',
   rate_change: 'Neuer Zinssatz',
   drawdown: 'Entnahme',
+  payout: 'Auszahlung',
+  deposit: 'Sondereinzahlung',
 }
 
 /** A credit line talks about deposits and withdrawals instead of special repayments. */
@@ -450,20 +452,25 @@ export function eventLabel(kind: FinancingEvent['kind'], financing: FinancingKin
   return EVENT_LABEL[kind]
 }
 
-function eventKinds(financing: FinancingKind): FinancingEvent['kind'][] {
-  return financing === 'credit_line'
-    ? ['special_repayment', 'drawdown', 'payment_change', 'rate_change']
-    : ['special_repayment', 'payment_change', 'rate_change']
+function eventKinds(detail: FinancingDetail): FinancingEvent['kind'][] {
+  if (detail.kind === 'credit_line') return ['special_repayment', 'drawdown', 'payment_change', 'rate_change']
+  const base: FinancingEvent['kind'][] = ['special_repayment', 'payment_change', 'rate_change']
+  // further payouts of the advance loan, only for contracts that already stage their payouts
+  const staged = ((detail.input as { payouts?: unknown[] }).payouts?.length ?? 0) > 0
+  const saving: FinancingEvent['kind'][] = detail.kind === 'building_savings' ? ['deposit'] : []
+  return detail.prefinanced && staged ? ['payout', ...saving, ...base] : [...saving, ...base]
 }
 
 export function EventForm({ detail }: { detail: FinancingDetail }) {
   const { current } = useMonth()
   const [kind, setKind] = useState<FinancingEvent['kind']>('special_repayment')
+  const stagedHint = detail.prefinanced && !eventKinds(detail).includes('payout')
   const mutation = useFinancingMutation(
     (v: { month: string; kind: FinancingEvent['kind']; value: string }) => financingApi.addEvent(detail.id, v),
     () => undefined,
   )
-  const firstMonth = detail.kind === 'building_savings' ? String(detail.input.allocation) : String(detail.input.start)
+  const firstMonth =
+    kind === 'payout' || kind === 'deposit' || detail.kind !== 'building_savings' ? String(detail.input.start) : String(detail.input.allocation)
   const min = firstMonth > current ? firstMonth : current
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -477,7 +484,7 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
       <label className="block text-sm">
         Ereignis
         <select value={kind} onChange={(e) => setKind(e.target.value as FinancingEvent['kind'])} className={input}>
-          {eventKinds(detail.kind).map((k) => (
+          {eventKinds(detail).map((k) => (
             <option key={k} value={k}>
               {eventLabel(k, detail.kind)}
             </option>
@@ -495,6 +502,11 @@ export function EventForm({ detail }: { detail: FinancingDetail }) {
       <button type="submit" disabled={mutation.isPending} className={primary}>
         Hinzufügen
       </button>
+      {stagedHint && (
+        <p className="text-xs text-tinte-weich sm:col-span-4">
+          Einzelne Auszahlungen des Vorausdarlehens trägst du unter „Vertragsdaten korrigieren“ ein. Danach kannst du hier weitere ergänzen.
+        </p>
+      )}
       <div className="sm:col-span-4">
         <ErrorLine error={mutation.error} />
       </div>
