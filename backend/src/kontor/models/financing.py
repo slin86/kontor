@@ -32,6 +32,7 @@ class Financing(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), index=True)
     kind: Mapped[FinancingKind] = mapped_column(Enum(FinancingKind, native_enum=False, length=24))
     name: Mapped[str] = mapped_column(String(120))
     purpose: Mapped[str | None] = mapped_column(String(24), nullable=True)

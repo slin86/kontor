@@ -95,6 +95,16 @@ Not covered yet: deleting a financing, scenarios with several interest paths.
 Not covered yet: tax, actual values (plan vs. actual), instrument search and cost comparison,
 CSV import, deleting positions.
 
+## People and household
+
+A household has several **people**. Every user gets one on registration; children (or anyone without a login) are added on the *Haushalt* page.
+Positions, actual values, transactions, CSV imports, tax settings, cashflow items and financings belong to one person; categories are shared.
+The Depot, Plan & Ist, Cashflow and Finanzierungen pages have a switcher (one person, or *Alle zusammen*, which sums everything; taxes are computed per owner with that owner's settings).
+A **transfer** is a cashflow item with a receiver (e.g. Mandy pays 800 € per month to Nils): an expense of the sender, income of the receiver, and netted out in the household total.
+It has versions like any other item, so it can change over time. Transfers are booked on the categories *Übertrag an andere Person* / *Übertrag erhalten*, created on first use.
+The *Haushalt* page also manages login members, the invite code (renewing invalidates the old one), the household name and the own profile/password.
+Migrations `0008` and `0009` assign existing positions, items and financings to the earliest member and move the tax settings to their person.
+
 ## Instrument catalog
 
 - Built-in reference data: 59 widely used UCITS ETFs (MSCI World, S&P 500, FTSE All-World, MSCI ACWI,

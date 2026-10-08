@@ -1,4 +1,4 @@
-"""Depot plan: instruments (positions), their dated savings rates and one-off payments."""
+"""Depot plan: positions of a person with their dated savings rates and one-off payments."""
 
 import enum
 from datetime import UTC, date, datetime
@@ -30,6 +30,7 @@ class Instrument(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), index=True)
     kind: Mapped[InstrumentKind] = mapped_column(Enum(InstrumentKind, native_enum=False, length=24))
     name: Mapped[str] = mapped_column(String(120))
     isin: Mapped[str | None] = mapped_column(String(12), nullable=True)
@@ -86,11 +87,11 @@ class OneOffPayment(Base):
 
 
 class TaxSettings(Base):
-    """Household-wide inputs for the tax estimate (one row per household)."""
+    """Inputs for the tax estimate of one person (church tax and allowance are personal)."""
 
-    __tablename__ = "tax_settings"
+    __tablename__ = "person_tax_settings"
 
-    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), primary_key=True)
     church_tax_percent: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=0)
     allowance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=1000)
     base_interest_percent: Mapped[Decimal] = mapped_column(Numeric(5, 3), default=Decimal("3.2"))

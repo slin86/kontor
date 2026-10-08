@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../auth'
 import { useMonth } from '../month'
+import { PersonProvider } from '../person'
 import { monthLabel } from '../monthUtils'
 import { useTheme } from '../theme'
 import { Pegel } from './Pegel'
@@ -12,6 +13,7 @@ const NAV = [
   { to: '/depot', label: 'Depot' },
   { to: '/ist', label: 'Plan & Ist' },
   { to: '/instrumente', label: 'Instrumente' },
+  { to: '/haushalt', label: 'Haushalt' },
 ]
 
 const THEME_LABEL = { auto: 'Automatisch', light: 'Hell', dark: 'Dunkel' } as const
@@ -70,7 +72,9 @@ export function Layout() {
               ? 'aktueller Monat'
               : 'geplant'}
         </p>
-        <Outlet />
+        <PersonProvider>
+          <Outlet />
+        </PersonProvider>
       </main>
     </div>
   )

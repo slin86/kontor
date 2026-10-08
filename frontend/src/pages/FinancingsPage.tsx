@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { PersonSwitcher } from '../components/PersonSwitcher'
+import { usePerson } from '../person'
 import { useState } from 'react'
 
 import { ConfirmDelete } from '../components/ConfirmDelete'
@@ -40,12 +42,13 @@ function Figure({ label, value }: { label: string; value: string }) {
 }
 
 function Outlook() {
+  const { selectedId } = usePerson()
   const [years, setYears] = useState(30)
   const [income, setIncome] = useState(0)
   const [expense, setExpense] = useState(0)
   const query = useQuery({
-    queryKey: ['financings', 'outlook', years, income, expense],
-    queryFn: () => financingApi.outlook(years, income, expense),
+    queryKey: ['financings', 'outlook', years, income, expense, selectedId],
+    queryFn: () => financingApi.outlook(years, income, expense, selectedId),
   })
   const data = query.data
   const first = data?.points[0]
@@ -239,13 +242,18 @@ function Detail({ financing }: { financing: Financing }) {
 }
 
 export function FinancingsPage() {
-  const list = useQuery({ queryKey: ['financings', 'list'], queryFn: financingApi.list })
+  const { selectedId, people } = usePerson()
+  const list = useQuery({
+    queryKey: ['financings', 'list', selectedId],
+    queryFn: () => financingApi.list(selectedId),
+  })
   const [adding, setAdding] = useState(false)
   const [open, setOpen] = useState<number | null>(null)
 
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Finanzierungen</h1>
+      <PersonSwitcher />
       <Outlook />
 
       <section aria-labelledby="vertraege">
@@ -288,6 +296,7 @@ export function FinancingsPage() {
                 <span className="font-medium">{f.name}</span>
                 <span className="text-sm text-tinte-weich">
                   {KIND_LABEL[f.prefinanced ? 'prefinanced' : f.kind === 'loan' ? (f.purpose ?? 'other') : f.kind]} · {PHASE_LABEL[f.phase]}
+                  {selectedId === null && people.length > 1 && <> · {people.find((p) => p.id === f.person_id)?.name}</>}
                 </span>
                 <span className="zahl ml-auto">
                   {euro(f.payment_this_month, true)}

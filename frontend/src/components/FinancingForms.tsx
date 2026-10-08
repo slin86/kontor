@@ -13,6 +13,7 @@ import {
 } from '../financingApi'
 import { useMonth } from '../month'
 import { addMonths } from '../monthUtils'
+import { usePerson } from '../person'
 import { decimalString, input, primary, secondary } from './ui'
 
 function ErrorLine({ error }: { error: unknown }) {
@@ -256,7 +257,9 @@ function KindFields({ kind, initial }: { kind: FormKind; initial?: Initial }) {
 export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail) => void }) {
   const { selected } = useMonth()
   const [kind, setKind] = useState<FormKind>('loan')
-  const mutation = useFinancingMutation(financingApi.create, onDone)
+  const { people, me, selectedId } = usePerson()
+  const [owner, setOwner] = useState<number | undefined>(selectedId ?? me?.id)
+  const mutation = useFinancingMutation((v: FinancingInput) => financingApi.create(v, owner), onDone)
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -285,6 +288,18 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
           </button>
         ))}
       </div>
+      {people.length > 1 && (
+        <label className="mb-4 block max-w-xs text-sm">
+          Gehört zu
+          <select value={owner ?? ''} onChange={(e) => setOwner(Number(e.target.value))} className={input}>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div key={kind} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <KindFields kind={kind} initial={initial} />
       </div>

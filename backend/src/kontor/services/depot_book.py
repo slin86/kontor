@@ -42,20 +42,25 @@ def _summed(i: Instrument) -> dict[date, Decimal]:
     return out
 
 
-def load_instruments(db: Session, household_id: int) -> list[Instrument]:
+def load_instruments(
+    db: Session, household_id: int, person_id: int | None = None
+) -> list[Instrument]:
+    """The household's positions; with ``person_id`` only those of that person."""
+    stmt = select(Instrument).where(Instrument.household_id == household_id)
+    if person_id is not None:
+        stmt = stmt.where(Instrument.person_id == person_id)
     return list(
         db.scalars(
-            select(Instrument)
-            .where(Instrument.household_id == household_id)
-            .options(selectinload(Instrument.rates), selectinload(Instrument.one_offs))
-            .order_by(Instrument.name, Instrument.id)
+            stmt.options(
+                selectinload(Instrument.rates), selectinload(Instrument.one_offs)
+            ).order_by(Instrument.name, Instrument.id)
         )
     )
 
 
-def tax_config(db: Session, household_id: int) -> TaxConfig:
-    """The household's tax settings, or the defaults when none were saved."""
-    row = db.get(TaxSettings, household_id)
+def tax_config(db: Session, person_id: int) -> TaxConfig:
+    """A person's tax settings, or the defaults when none were saved."""
+    row = db.get(TaxSettings, person_id)
     if row is None:
         return TaxConfig()
     return TaxConfig(

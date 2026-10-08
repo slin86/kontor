@@ -51,6 +51,11 @@ class CashflowItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), index=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), index=True)
+    # Set for a transfer: the booking is an expense of ``person_id`` and income of this person.
+    transfer_to_id: Mapped[int | None] = mapped_column(
+        ForeignKey("persons.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

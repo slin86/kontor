@@ -98,6 +98,7 @@ class ScheduleRowOut(BaseModel):
 
 class FinancingOut(BaseModel):
     id: int
+    person_id: int
     kind: Literal["loan", "building_savings", "credit_line"]
     name: str
     purpose: str | None

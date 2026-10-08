@@ -6,6 +6,7 @@ import { depotApi } from '../depotApi'
 import { euro } from '../format'
 import { useMonth } from '../month'
 import { monthLabel } from '../monthUtils'
+import { usePerson } from '../person'
 import { decimalString, input, primary, secondary } from './ui'
 
 function ErrorLine({ error }: { error: unknown }) {
@@ -27,7 +28,8 @@ function useInvalidate() {
 }
 
 function usePositions() {
-  return useQuery({ queryKey: ['depot', 'overview'], queryFn: depotApi.overview })
+  const { selectedId } = usePerson()
+  return useQuery({ queryKey: ['depot', 'overview', selectedId], queryFn: () => depotApi.overview(selectedId) })
 }
 
 export function ValueForm() {
@@ -145,6 +147,9 @@ export function TransactionForm() {
 }
 
 export function ImportPanel() {
+  const { selectedId, me, people } = usePerson()
+  // an import always belongs to one person: the chosen one, or the own person when everyone is shown
+  const target = people.find((p) => p.id === (selectedId ?? me?.id))
   const positions = usePositions().data?.instruments ?? []
   const invalidate = useInvalidate()
   const [csv, setCsv] = useState<string | null>(null)
@@ -154,11 +159,11 @@ export function ImportPanel() {
   const [done, setDone] = useState<string | null>(null)
 
   const previewMutation = useMutation({
-    mutationFn: (v: { text: string; map: Record<string, number> }) => actualsApi.preview(v.text, v.map),
+    mutationFn: (v: { text: string; map: Record<string, number> }) => actualsApi.preview(v.text, v.map, target?.id ?? 0),
     onSuccess: setPreview,
   })
   const importMutation = useMutation({
-    mutationFn: () => actualsApi.importCsv(csv ?? '', mapping),
+    mutationFn: () => actualsApi.importCsv(csv ?? '', mapping, target?.id ?? 0),
     onSuccess: async (r) => {
       setDone(`${r.imported} Transaktionen importiert, ${r.duplicates} schon vorhanden, ${r.unmatched} ohne Position übersprungen.`)
       setCsv(null)
@@ -190,6 +195,12 @@ export function ImportPanel() {
   const skipped = preview ? Object.entries(preview.skipped) : []
   return (
     <div className="space-y-4">
+      {target && people.length > 1 && (
+        <p className="text-sm font-medium">
+          Import für {target.name}
+          {selectedId === null && <span className="font-normal text-tinte-weich"> (Wähle oben eine Person, um für jemand anderen zu importieren.)</span>}
+        </p>
+      )}
       <label className="block text-sm">
         CSV-Export des Brokers
         <input type="file" accept=".csv,text/csv,text/plain" onChange={onFile} className={`${input} cursor-pointer`} />

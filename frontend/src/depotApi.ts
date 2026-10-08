@@ -1,4 +1,5 @@
 import { api } from './api'
+import { personQuery } from './peopleApi'
 
 export type InstrumentKind = 'etf' | 'private_equity'
 
@@ -9,6 +10,7 @@ export const KIND_LABEL: Record<InstrumentKind, string> = {
 
 export interface Instrument {
   id: number
+  person_id: number
   kind: InstrumentKind
   name: string
   isin: string | null
@@ -84,6 +86,7 @@ export interface Assumptions {
 }
 
 export interface NewInstrument extends Assumptions {
+  person_id?: number
   kind: InstrumentKind
   start: string
   start_value: string
@@ -91,7 +94,7 @@ export interface NewInstrument extends Assumptions {
 }
 
 export const depotApi = {
-  overview: () => api<Depot>('/depot'),
+  overview: (person: number | null) => api<Depot>(`/depot${personQuery(person, true)}`),
   get: (id: number) => api<InstrumentDetail>(`/depot/instruments/${id}`),
   create: (json: NewInstrument) => api<InstrumentDetail>('/depot/instruments', { method: 'POST', json }),
   remove: (id: number) => api<void>(`/depot/instruments/${id}`, { method: 'DELETE' }),
@@ -104,8 +107,12 @@ export const depotApi = {
     api<InstrumentDetail>(`/depot/instruments/${id}/one-offs`, { method: 'POST', json }),
   removeOneOff: (id: number, oneOffId: number) =>
     api<InstrumentDetail>(`/depot/instruments/${id}/one-offs/${oneOffId}`, { method: 'DELETE' }),
-  projection: (years: number, shift: number, inflation: number) =>
-    api<Projection>(`/depot/projection?years=${years}&return_shift=${shift}&inflation=${inflation}`),
+  changeOwner: (id: number, person_id: number) =>
+    api<InstrumentDetail>(`/depot/instruments/${id}/person`, { method: 'PUT', json: { person_id } }),
+  projection: (years: number, shift: number, inflation: number, person: number | null) =>
+    api<Projection>(
+      `/depot/projection?years=${years}&return_shift=${shift}&inflation=${inflation}${personQuery(person)}`,
+    ),
 }
 
 export interface TaxSettings {
@@ -122,6 +129,7 @@ export interface TaxSettingsInput {
 }
 
 export const taxApi = {
-  get: () => api<TaxSettings>('/tax/settings'),
-  save: (json: TaxSettingsInput) => api<TaxSettings>('/tax/settings', { method: 'PUT', json }),
+  get: (person: number) => api<TaxSettings>(`/tax/settings?person=${person}`),
+  save: (person: number, json: TaxSettingsInput) =>
+    api<TaxSettings>(`/tax/settings?person=${person}`, { method: 'PUT', json }),
 }

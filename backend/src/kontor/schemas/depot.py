@@ -26,6 +26,8 @@ class Assumptions(BaseModel):
 
 
 class InstrumentIn(Assumptions):
+    # owner of the position; the signed-in user's own person when left out
+    person_id: int | None = None
     kind: Kind
     start: Month
     start_value: Euro = Decimal(0)
@@ -65,8 +67,13 @@ class OneOffOut(BaseModel):
     locked: bool
 
 
+class OwnerChange(BaseModel):
+    person_id: int
+
+
 class InstrumentOut(BaseModel):
     id: int
+    person_id: int
     kind: Kind
     name: str
     isin: str | None

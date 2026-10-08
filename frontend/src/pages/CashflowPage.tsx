@@ -5,11 +5,13 @@ import { Link } from 'react-router-dom'
 import { cashflowApi, type AuditEntry, type Item } from '../cashflowApi'
 import { GroupBars } from '../components/GroupBars'
 import { ItemEditor, NewItemForm } from '../components/ItemForms'
+import { PersonSwitcher } from '../components/PersonSwitcher'
 import { SankeyView } from '../components/SankeyView'
 import { SeriesView } from '../components/SeriesView'
 import { euro, FREQUENCY_LABEL, percent } from '../format'
 import { useMonth } from '../month'
 import { addMonths, monthLabel } from '../monthUtils'
+import { usePerson } from '../person'
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: 'bad' }) {
   return (
@@ -64,17 +66,18 @@ function AuditList({ entries }: { entries: AuditEntry[] }) {
 
 export function CashflowPage() {
   const { selected, isLocked } = useMonth()
+  const { selectedId, people } = usePerson()
   const locked = isLocked(selected)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<number | null>(null)
 
   const categories = useQuery({ queryKey: ['cashflow', 'categories'], queryFn: cashflowApi.categories })
-  const items = useQuery({ queryKey: ['cashflow', 'items', selected], queryFn: () => cashflowApi.items(selected) })
-  const summary = useQuery({ queryKey: ['cashflow', 'summary', selected], queryFn: () => cashflowApi.summary(selected) })
-  const sankey = useQuery({ queryKey: ['cashflow', 'sankey', selected], queryFn: () => cashflowApi.sankey(selected) })
+  const items = useQuery({ queryKey: ['cashflow', 'items', selected, selectedId], queryFn: () => cashflowApi.items(selected, selectedId) })
+  const summary = useQuery({ queryKey: ['cashflow', 'summary', selected, selectedId], queryFn: () => cashflowApi.summary(selected, selectedId) })
+  const sankey = useQuery({ queryKey: ['cashflow', 'sankey', selected, selectedId], queryFn: () => cashflowApi.sankey(selected, selectedId) })
   const from = addMonths(selected, -6)
   const to = addMonths(selected, 17)
-  const series = useQuery({ queryKey: ['cashflow', 'series', from, to], queryFn: () => cashflowApi.series(from, to) })
+  const series = useQuery({ queryKey: ['cashflow', 'series', from, to, selectedId], queryFn: () => cashflowApi.series(from, to, selectedId) })
   const audit = useQuery({ queryKey: ['cashflow', 'audit'], queryFn: cashflowApi.audit })
 
   const s = summary.data
@@ -90,18 +93,25 @@ export function CashflowPage() {
       <li key={i.id} className="py-3">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span className="font-medium">{i.name}</span>
-          <span className="text-sm text-tinte-weich">{i.category_name}</span>
+          <span className="text-sm text-tinte-weich">
+            {i.transfer_to_name && !i.incoming ? `Übertrag an ${i.transfer_to_name}` : i.category_name}
+            {selectedId === null && people.length > 1 && ` · ${people.find((p) => p.id === i.person_id)?.name}`}
+          </span>
           <span className="zahl ml-auto">
             {euro(v.amount, true)}
             <span className="text-sm text-tinte-weich"> {FREQUENCY_LABEL[v.frequency]}</span>
           </span>
-          <button
-            type="button"
-            className="text-sm font-medium text-elbe-dunkel hover:underline"
-            onClick={() => setEditing(editing === i.id ? null : i.id)}
-          >
-            {editing === i.id ? 'Schließen' : locked ? 'Korrigieren' : 'Bearbeiten'}
-          </button>
+          {i.incoming ? (
+            <span className="text-sm text-tinte-weich">wird beim Absender bearbeitet</span>
+          ) : (
+            <button
+              type="button"
+              className="text-sm font-medium text-elbe-dunkel hover:underline"
+              onClick={() => setEditing(editing === i.id ? null : i.id)}
+            >
+              {editing === i.id ? 'Schließen' : locked ? 'Korrigieren' : 'Bearbeiten'}
+            </button>
+          )}
         </div>
         {v.valid_to &&
           (next ? (
@@ -126,6 +136,14 @@ export function CashflowPage() {
         <h1 id="uebersicht" className="sr-only">
           Cashflow im {monthLabel(selected)}
         </h1>
+        <div className="mb-6">
+          <PersonSwitcher />
+          {selectedId === null && people.length > 1 && (
+            <p className="mt-2 text-sm text-tinte-weich">
+              Haushalt gesamt: Übertragungen zwischen Personen heben sich auf und tauchen hier nicht als Einnahme oder Ausgabe auf.
+            </p>
+          )}
+        </div>
         {s && (
           <div className="flex flex-wrap gap-x-12 gap-y-4">
             <Figure label="Einnahmen pro Monat" value={euro(s.income)} />

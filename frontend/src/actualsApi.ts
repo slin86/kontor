@@ -1,4 +1,5 @@
 import { api } from './api'
+import { personQuery } from './peopleApi'
 
 export interface ActualValue {
   id: number
@@ -83,15 +84,16 @@ export const KIND_LABEL: Record<Transaction['kind'], string> = {
 }
 
 export const actualsApi = {
-  compare: () => api<Comparison>('/actuals/compare'),
+  compare: (person: number | null) => api<Comparison>(`/actuals/compare${personQuery(person, true)}`),
   setValue: (json: { instrument_id: number; month: string; value: string; reason: string | null }) =>
     api<ActualValue>('/actuals/values', { method: 'PUT', json }),
-  transactions: () => api<Transaction[]>('/actuals/transactions?limit=30'),
+  transactions: (person: number | null) =>
+    api<Transaction[]>(`/actuals/transactions?limit=30${personQuery(person)}`),
   addTransaction: (json: { instrument_id: number; day: string; kind: Transaction['kind']; amount: string; fee: string }) =>
     api<Transaction>('/actuals/transactions', { method: 'POST', json }),
   removeTransaction: (id: number) => api<void>(`/actuals/transactions/${id}`, { method: 'DELETE' }),
-  preview: (csv: string, mapping: Record<string, number>) =>
-    api<ImportPreview>('/actuals/import/preview', { method: 'POST', json: { csv, mapping } }),
-  importCsv: (csv: string, mapping: Record<string, number>) =>
-    api<ImportResult>('/actuals/import', { method: 'POST', json: { csv, mapping } }),
+  preview: (csv: string, mapping: Record<string, number>, person_id: number) =>
+    api<ImportPreview>('/actuals/import/preview', { method: 'POST', json: { csv, mapping, person_id } }),
+  importCsv: (csv: string, mapping: Record<string, number>, person_id: number) =>
+    api<ImportResult>('/actuals/import', { method: 'POST', json: { csv, mapping, person_id } }),
 }
