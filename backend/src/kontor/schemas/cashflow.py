@@ -72,6 +72,9 @@ class ItemOut(BaseModel):
     transfer_to_id: int | None = None
     transfer_to_name: str | None = None
     incoming: bool = False  # a transfer seen from the receiving person
+    spread: bool = True  # periodic cost spread over all months, else booked in the due month
+    due_now: bool = True  # the requested month is a due month (always true when spread)
+    booked: float = 0  # what the item costs in the requested month
     active: VersionOut | None  # version valid in the requested month
     versions: list[VersionOut]
 
@@ -83,6 +86,7 @@ class ItemCreate(BaseModel):
     transfer_to_id: int | None = None  # makes the item a transfer to this person
     amount: Money
     frequency: Frequency = Frequency.MONTHLY
+    spread: bool = True
     valid_from: Month
 
 
@@ -100,6 +104,7 @@ class ItemRename(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     category_id: int | None = None
     person_id: int | None = None
+    spread: bool | None = None
 
 
 class VersionCorrection(BaseModel):

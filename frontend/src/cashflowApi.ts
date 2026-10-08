@@ -33,6 +33,9 @@ export interface Item {
   transfer_to_id: number | null
   transfer_to_name: string | null
   incoming: boolean // a transfer seen from the person who receives it
+  spread: boolean // periodic cost spread over all months; false = booked in the due month only
+  due_now: boolean // the requested month is a due month
+  booked: number // what the item costs in the requested month
   active: Version | null
   versions: Version[]
 }
@@ -125,8 +128,10 @@ export const cashflowApi = {
     transfer_to_id?: number
     amount: string
     frequency: Frequency
+    spread: boolean
     valid_from: string
   }) => api<Item>('/cashflow/items', { method: 'POST', json }),
+  setSpread: (id: number, spread: boolean) => api<Item>(`/cashflow/items/${id}`, { method: 'PATCH', json: { spread } }),
   changeItem: (id: number, json: { effective_from: string; amount: string; frequency: Frequency }) =>
     api<Item>(`/cashflow/items/${id}/change`, { method: 'POST', json }),
   endItem: (id: number, json: { end_from: string }) => api<Item>(`/cashflow/items/${id}/end`, { method: 'POST', json }),

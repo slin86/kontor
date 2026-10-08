@@ -2,24 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { cashflowApi, type AuditEntry, type Item } from '../cashflowApi'
-import { GroupBars } from '../components/GroupBars'
-import { ItemEditor, NewItemForm } from '../components/ItemForms'
-import { SankeyView } from '../components/SankeyView'
-import { SeriesView } from '../components/SeriesView'
-import { euro, FREQUENCY_LABEL, percent } from '../format'
-import { useMonth } from '../month'
-import { addMonths, monthLabel } from '../monthUtils'
-import { usePerson } from '../person'
-
-function Figure({ label, value, tone }: { label: string; value: string; tone?: 'bad' }) {
-  return (
-    <div>
-      <div className={`zahl text-3xl font-semibold ${tone === 'bad' ? 'text-bake' : ''}`}>{value}</div>
-      <div className="text-sm text-tinte-weich">{label}</div>
-    </div>
-  )
-}
+import { cashflowApi, type AuditEntry, type Item } from '../../cashflowApi'
+import { ItemEditor, NewItemForm } from '../../components/ItemForms'
+import { euro, FREQUENCY_LABEL } from '../../format'
+import { useMonth } from '../../month'
+import { addMonths, monthLabel } from '../../monthUtils'
+import { usePerson } from '../../person'
+import { useCashflowData } from './useCashflowData'
 
 const ACTION_LABEL: Record<string, string> = {
   create: 'angelegt',
@@ -63,7 +52,7 @@ function AuditList({ entries }: { entries: AuditEntry[] }) {
   )
 }
 
-export function CashflowPage() {
+export function ItemsView() {
   const { selected, isLocked } = useMonth()
   const { selectedId, people } = usePerson()
   const locked = isLocked(selected)
@@ -71,16 +60,8 @@ export function CashflowPage() {
   const [editing, setEditing] = useState<number | null>(null)
 
   const categories = useQuery({ queryKey: ['cashflow', 'categories'], queryFn: cashflowApi.categories })
-  const items = useQuery({ queryKey: ['cashflow', 'items', selected, selectedId], queryFn: () => cashflowApi.items(selected, selectedId) })
-  const summary = useQuery({ queryKey: ['cashflow', 'summary', selected, selectedId], queryFn: () => cashflowApi.summary(selected, selectedId) })
-  const sankey = useQuery({ queryKey: ['cashflow', 'sankey', selected, selectedId], queryFn: () => cashflowApi.sankey(selected, selectedId) })
-  const from = addMonths(selected, -6)
-  const to = addMonths(selected, 17)
-  const series = useQuery({ queryKey: ['cashflow', 'series', from, to, selectedId], queryFn: () => cashflowApi.series(from, to, selectedId) })
+  const { items } = useCashflowData()
   const audit = useQuery({ queryKey: ['cashflow', 'audit'], queryFn: cashflowApi.audit })
-
-  const s = summary.data
-  const empty = items.data?.length === 0
 
   const incomeItems = (items.data ?? []).filter((i) => i.kind === 'income')
   const expenseItems = (items.data ?? []).filter((i) => i.kind === 'expense')
@@ -112,6 +93,15 @@ export function CashflowPage() {
             </button>
           )}
         </div>
+        {v.frequency !== 'monthly' && (
+          <div className="text-sm text-tinte-weich">
+            {i.spread
+              ? `Auf ${monthLabel(selected)} entfallen ${euro(i.booked, true)}, auf monatliche Kosten aufgeteilt`
+              : i.due_now
+                ? `Fällig im ${monthLabel(selected)}: der volle Betrag zählt in diesem Monat`
+                : 'In diesem Monat nicht fällig, der Betrag zählt nur im Fälligkeitsmonat'}
+          </div>
+        )}
         {v.valid_to &&
           (next ? (
             <div className="text-sm text-tinte-weich">
@@ -131,60 +121,7 @@ export function CashflowPage() {
 
   return (
     <div className="space-y-12">
-      <section aria-labelledby="uebersicht">
-        <h1 id="uebersicht" className="sr-only">
-          Cashflow im {monthLabel(selected)}
-        </h1>
-        {selectedId === null && people.length > 1 && (
-          <p className="mb-6 text-sm text-tinte-weich">
-            Haushalt gesamt: Übertragungen zwischen Personen heben sich auf und tauchen hier nicht als Einnahme oder Ausgabe auf.
-          </p>
-        )}
-        {s && (
-          <div className="flex flex-wrap gap-x-12 gap-y-4">
-            <Figure label="Einnahmen pro Monat" value={euro(s.income)} />
-            <Figure label="Ausgaben pro Monat" value={euro(s.expenses)} />
-            {s.financing > 0 && <Figure label="Finanzierungen pro Monat" value={euro(s.financing)} />}
-            <Figure label={s.balance < 0 ? 'Fehlbetrag' : 'Übrig'} value={euro(s.balance)} tone={s.balance < 0 ? 'bad' : undefined} />
-            {s.savings_rate !== null && <Figure label="Sparquote" value={percent(s.savings_rate)} />}
-          </div>
-        )}
-      </section>
-
-      <section aria-labelledby="fluss">
-        <h2 id="fluss" className="mb-4 text-xl">
-          Wohin das Geld fließt
-        </h2>
-        {empty ? (
-          <p className="max-w-xl text-tinte-weich">
-            Für {monthLabel(selected)} gibt es noch keine Posten. Erfasse unten deine Einnahmen und Ausgaben, dann
-            erscheint hier der Geldfluss.
-          </p>
-        ) : (
-          sankey.data && <SankeyView data={sankey.data} />
-        )}
-      </section>
-
-      {!empty && s && (
-        <div className="grid gap-12 lg:grid-cols-[1fr_20rem]">
-          <section aria-labelledby="verlauf">
-            <h2 id="verlauf" className="mb-4 text-xl">
-              Verlauf über die Zeit
-            </h2>
-            {series.data && <SeriesView data={series.data} />}
-            <p className="mt-2 max-w-xl text-sm text-tinte-weich">
-              Endet ein Posten, etwa eine Kita-Gebühr, steigt der Überschuss ab diesem Monat sichtbar.
-            </p>
-          </section>
-          <section aria-labelledby="anteile">
-            <h2 id="anteile" className="mb-4 text-xl">
-              Anteil an den Ausgaben
-            </h2>
-            <GroupBars groups={s.expense_groups} total={s.expenses} />
-          </section>
-        </div>
-      )}
-
+      <h1 className="sr-only">Posten im {monthLabel(selected)}</h1>
       <section aria-labelledby="posten">
         <div className="mb-2 flex items-baseline gap-4">
           <h2 id="posten" className="text-xl">

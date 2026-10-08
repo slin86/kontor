@@ -29,15 +29,36 @@ function ErrorLine({ error }: { error: unknown }) {
   )
 }
 
-function FrequencySelect({ defaultValue }: { defaultValue?: Frequency }) {
+function FrequencySelect({ defaultValue, onChange }: { defaultValue?: Frequency; onChange?: (f: Frequency) => void }) {
   return (
-    <select name="frequency" defaultValue={defaultValue ?? 'monthly'} className={input}>
+    <select
+      name="frequency"
+      defaultValue={defaultValue ?? 'monthly'}
+      onChange={onChange && ((e) => onChange(e.target.value as Frequency))}
+      className={input}
+    >
       {Object.entries(FREQUENCY_LABEL).map(([v, label]) => (
         <option key={v} value={v}>
           {label}
         </option>
       ))}
     </select>
+  )
+}
+
+function SpreadCheckbox({ checked, onChange, start }: { checked: boolean; onChange: (v: boolean) => void; start?: boolean }) {
+  return (
+    <label className="flex items-start gap-2 text-sm sm:col-span-2">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1" />
+      <span>
+        Auf monatliche Kosten aufteilen
+        <span className="block text-xs text-tinte-weich">
+          {checked
+            ? 'Jeder Monat trägt einen gleichen Anteil.'
+            : `Der volle Betrag zählt nur in dem Monat, in dem er fällig ist${start ? ' (ab der ersten Zahlung im Rhythmus)' : ''}.`}
+        </span>
+      </span>
+    </label>
   )
 }
 
@@ -50,6 +71,8 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
   const { people, me, selectedId } = usePerson()
   const [owner, setOwner] = useState<number | undefined>(selectedId ?? me?.id)
   const [transfer, setTransfer] = useState(false)
+  const [frequency, setFrequency] = useState<Frequency>('monthly')
+  const [spread, setSpread] = useState(true)
   const mutation = useCashflowMutation(cashflowApi.createItem, onDone)
   const others = people.filter((p) => p.id !== owner)
   const byId = new Map(categories.map((c) => [c.id, c]))
@@ -65,7 +88,8 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
         ? { transfer_to_id: Number(f.get('transfer_to_id')) }
         : { category_id: Number(f.get('category_id')) }),
       amount: parseAmount(f.get('amount')),
-      frequency: String(f.get('frequency')) as Frequency,
+      frequency,
+      spread,
       valid_from: String(f.get('valid_from')),
     })
   }
@@ -132,12 +156,13 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
       </label>
       <label className="block text-sm">
         Zahlweise
-        <FrequencySelect />
+        <FrequencySelect onChange={setFrequency} />
       </label>
       <label className="block text-sm">
-        Gilt ab
+        {frequency === 'monthly' ? 'Gilt ab' : 'Erste Zahlung im'}
         <input name="valid_from" type="month" required defaultValue={selected} className={input} />
       </label>
+      {frequency !== 'monthly' && <SpreadCheckbox checked={spread} onChange={setSpread} start />}
       <div className="flex items-end gap-2">
         <button type="submit" disabled={mutation.isPending} className={primary}>
           Posten speichern
@@ -153,7 +178,7 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
   )
 }
 
-type Mode = 'change' | 'end' | 'correct'
+type Mode = 'change' | 'spread' | 'end' | 'correct'
 
 export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void }) {
   const { selected, current, isLocked } = useMonth()
@@ -165,6 +190,8 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
     (v: { effective_from: string; amount: string; frequency: Frequency }) => cashflowApi.changeItem(item.id, v),
     onDone,
   )
+  const [spread, setSpread] = useState(item.spread)
+  const setSpreadMutation = useCashflowMutation((v: boolean) => cashflowApi.setSpread(item.id, v), onDone)
   const end = useCashflowMutation((v: { end_from: string }) => cashflowApi.endItem(item.id, v), onDone)
   const correct = useCashflowMutation(
     (v: { reason: string; amount?: string; frequency?: Frequency }) =>
@@ -184,6 +211,8 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
         amount: parseAmount(f.get('amount')),
         frequency: String(f.get('frequency')) as Frequency,
       })
+    } else if (mode === 'spread') {
+      setSpreadMutation.mutate(spread)
     } else if (mode === 'end') {
       end.mutate({ end_from: String(f.get('end_from')) })
     } else {
@@ -195,13 +224,15 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
     }
   }
 
+  const periodic = active.frequency !== 'monthly'
   const tabs: [Mode, string][] = [
     ['change', 'Ab einem Monat ändern'],
+    ...(periodic ? ([['spread', 'Aufteilung']] as [Mode, string][]) : []),
     ['end', 'Beenden'],
     ['correct', 'Korrigieren'],
   ]
-  const error = mode === 'change' ? change.error : mode === 'end' ? end.error : correct.error
-  const pending = change.isPending || end.isPending || correct.isPending
+  const error = { change: change.error, spread: setSpreadMutation.error, end: end.error, correct: correct.error }[mode]
+  const pending = change.isPending || end.isPending || correct.isPending || setSpreadMutation.isPending
 
   let fields: ReactNode
   if (mode === 'change') {
@@ -228,6 +259,8 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
         </label>
       </>
     )
+  } else if (mode === 'spread') {
+    fields = <SpreadCheckbox checked={spread} onChange={setSpread} />
   } else if (mode === 'end') {
     fields = (
       <label className="block text-sm">
@@ -284,7 +317,7 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
       <div className="grid gap-4 sm:grid-cols-3">{fields}</div>
       <div className="mt-4 flex items-center gap-2">
         <button type="submit" disabled={pending} className={primary}>
-          {mode === 'change' ? 'Änderung speichern' : mode === 'end' ? 'Posten beenden' : 'Korrektur speichern'}
+          {mode === 'change' ? 'Änderung speichern' : mode === 'spread' ? 'Aufteilung speichern' : mode === 'end' ? 'Posten beenden' : 'Korrektur speichern'}
         </button>
         <button type="button" onClick={onDone} className={secondary}>
           Abbrechen
