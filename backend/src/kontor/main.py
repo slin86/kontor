@@ -15,6 +15,7 @@ from kontor.api import (
     household,
     outlook,
     people,
+    properties,
     tax,
     wealth,
 )
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(actuals.router)
     app.include_router(tax.router)
     app.include_router(people.router)
+    app.include_router(properties.router)
     app.include_router(wealth.router)
     app.include_router(household.router)
     return app

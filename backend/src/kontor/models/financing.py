@@ -34,6 +34,10 @@ class Financing(Base):
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
     person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), index=True)
     kind: Mapped[FinancingKind] = mapped_column(Enum(FinancingKind, native_enum=False, length=24))
+    # the property this financing pays for, if any
+    property_id: Mapped[int | None] = mapped_column(
+        ForeignKey("properties.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(120))
     purpose: Mapped[str | None] = mapped_column(String(24), nullable=True)
     params: Mapped[dict[str, Any]] = mapped_column(JSON)

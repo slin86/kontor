@@ -14,6 +14,7 @@ from kontor.models.cashflow import (
 from kontor.models.catalog import CatalogEntry
 from kontor.models.depot import Instrument, InstrumentKind, OneOffPayment, SavingsRate, TaxSettings
 from kontor.models.financing import Financing, FinancingEvent, FinancingKind
+from kontor.models.property import Property, PropertyUsage, PropertyWork
 
 __all__ = [
     "ActualValue",
@@ -36,6 +37,9 @@ __all__ = [
     "InstrumentKind",
     "OneOffPayment",
     "Person",
+    "Property",
+    "PropertyUsage",
+    "PropertyWork",
     "SavingsRate",
     "TaxSettings",
     "User",
