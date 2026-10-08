@@ -160,7 +160,7 @@ function Detail({ financing }: { financing: Financing }) {
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         {d.remaining_debt !== null && (
           <Figure
-            label={d.kind === 'credit_line' ? 'Aktuell genutzt' : d.prefinanced && d.phase === 'saving' ? 'Vorausdarlehen' : 'Restschuld'}
+            label={d.kind === 'credit_line' ? 'Aktuell genutzt' : d.prefinanced && d.phase === 'saving' ? 'Vorausdarlehen ausgezahlt' : 'Restschuld'}
             value={euro(d.remaining_debt)}
           />
         )}

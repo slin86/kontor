@@ -93,7 +93,7 @@ def _events(f: Financing) -> list[LoanEvent]:
 def all_payouts(f: Financing) -> list[tuple[date, Decimal]]:
     """Staged payouts of a Bausparfinanzierung: those of the contract plus later added ones.
 
-    Empty means the whole contract sum counts as paid out from the first month.
+    Empty means nothing has been paid out yet, so no advance-loan interest accrues.
     """
     base = [(parse_month(x["month"]), Decimal(x["amount"])) for x in f.params.get("payouts") or []]
     extra = [(e.month, Decimal(e.value)) for e in f.events if e.kind == "payout"]
@@ -139,7 +139,7 @@ def schedule_for(f: Financing) -> Schedule:
                 if p.get("prefinance_rate_percent") is not None
                 else None
             ),
-            payouts=tuple(all_payouts(f)) or None,
+            payouts=tuple(all_payouts(f)),  # nothing recorded means nothing paid out yet
             deposits=tuple((e.month, Decimal(e.value)) for e in f.events if e.kind == "deposit"),
             loan_rate=Decimal(p["loan_rate_percent"]) / PERCENT,
             loan_payment=Decimal(p["loan_payment"]),
