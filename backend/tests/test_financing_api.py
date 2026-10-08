@@ -454,3 +454,59 @@ def test_prefinanced_bauspar_has_debt_and_interest_from_day_one(client: TestClie
     plain = _create(client, BAUSPAR)
     assert plain["prefinanced"] is False
     assert plain["remaining_debt"] is None
+
+
+STAGED = {
+    **BAUSPAR,
+    "contract_sum": "61000",
+    "start": "2026-01",
+    "allocation": "2036-01",
+    "prefinance_rate_percent": "6",
+    "payouts": [
+        {"month": "2026-02", "amount": "26000"},
+        {"month": "2026-05", "amount": "20000"},
+        {"month": "2027-05", "amount": "15000"},
+    ],
+}
+
+
+def test_staged_payouts_charge_interest_only_on_what_is_paid_out(client: TestClient) -> None:
+    _login(client)
+    f = _create(client, STAGED)
+    interest = {r["month"]: r["interest"] for r in f["schedule"] if r["phase"] == "saving"}
+    assert interest["2026-01"] == 0
+    assert interest["2026-02"] == 130  # 26000 * 6 % / 12
+    assert interest["2026-04"] == 130
+    assert interest["2026-05"] == 230  # 46000
+    assert interest["2027-04"] == 230
+    assert interest["2027-05"] == 305  # the full 61000
+    assert f["schedule"][0]["saving"] == 200  # the Bauspar share runs from day one
+
+
+def test_staged_payouts_are_checked(client: TestClient) -> None:
+    _login(client)
+    too_much = {**STAGED, "payouts": [{"month": "2026-02", "amount": "62000"}]}
+    assert client.post("/api/financings", json=too_much).status_code == 422
+    before_start = {**STAGED, "payouts": [{"month": "2025-12", "amount": "1000"}]}
+    assert client.post("/api/financings", json=before_start).status_code == 422
+    no_advance = {**STAGED, "prefinance_rate_percent": None}
+    assert client.post("/api/financings", json=no_advance).status_code == 422
+
+
+def test_zero_percent_financing(client: TestClient) -> None:
+    _login(client)
+    body = {
+        "kind": "loan",
+        "name": "Sofa",
+        "purpose": "zero_percent",
+        "principal": "1200",
+        "annual_rate_percent": "0",
+        "monthly_payment": "100",
+        "start": "2026-10",
+    }
+    f = _create(client, body)
+    assert f["purpose"] == "zero_percent"
+    assert f["total_interest"] == 0
+    assert len(f["schedule"]) == 12
+    with_interest = client.post("/api/financings", json={**body, "annual_rate_percent": "1"})
+    assert with_interest.status_code == 422

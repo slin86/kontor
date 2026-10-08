@@ -236,83 +236,12 @@ function MembersSection() {
   )
 }
 
-function AccountSection() {
-  const qc = useQueryClient()
-  const [saved, setSaved] = useState<string | null>(null)
-  const profile = useMutation({
-    mutationFn: householdApi.updateProfile,
-    onSuccess: async () => {
-      setSaved('Name gespeichert')
-      await qc.invalidateQueries({ queryKey: ['me'] })
-      await qc.invalidateQueries({ queryKey: ['people'] })
-      await qc.invalidateQueries({ queryKey: ['household'] })
-    },
-  })
-  const password = useMutation({
-    mutationFn: (v: { current: string; next: string }) => householdApi.changePassword(v.current, v.next),
-    onSuccess: () => setSaved('Passwort geändert. Auf anderen Geräten musst du dich neu anmelden.'),
-  })
-
-  function submitProfile(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSaved(null)
-    const name = String(new FormData(e.currentTarget).get('name') ?? '').trim()
-    if (name) profile.mutate(name)
-  }
-  function submitPassword(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSaved(null)
-    const form = e.currentTarget
-    const f = new FormData(form)
-    password.mutate(
-      { current: String(f.get('current')), next: String(f.get('next')) },
-      { onSuccess: () => form.reset() },
-    )
-  }
-
-  const current = qc.getQueryData<{ user: { display_name: string } } | null>(['me'])
-  return (
-    <section aria-labelledby="konto">
-      <h2 id="konto" className="text-xl">
-        Mein Konto
-      </h2>
-      <form onSubmit={submitProfile} className="mt-3 flex flex-wrap items-end gap-3">
-        <label className="block text-sm">
-          Anzeigename
-          <input name="name" required maxLength={80} defaultValue={current?.user.display_name} className={input} />
-        </label>
-        <button type="submit" disabled={profile.isPending} className={primary}>
-          Speichern
-        </button>
-      </form>
-      <form onSubmit={submitPassword} className="mt-6 flex flex-wrap items-end gap-3">
-        <label className="block text-sm">
-          Aktuelles Passwort
-          <input name="current" type="password" required autoComplete="current-password" className={input} />
-        </label>
-        <label className="block text-sm">
-          Neues Passwort
-          <input name="next" type="password" required minLength={10} autoComplete="new-password" className={input} />
-        </label>
-        <button type="submit" disabled={password.isPending} className={primary}>
-          Passwort ändern
-        </button>
-      </form>
-      <div className="mt-2 space-y-1">
-        <ErrorLine error={profile.error ?? password.error} />
-        {saved && <p className="text-sm font-medium text-elbe-dunkel">{saved}</p>}
-      </div>
-    </section>
-  )
-}
-
 export function HouseholdPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Haushalt</h1>
       <PeopleSection />
       <MembersSection />
-      <AccountSection />
     </div>
   )
 }

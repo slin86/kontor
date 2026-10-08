@@ -63,6 +63,10 @@ Not covered yet: correcting the *dates* of a version, deleting items.
   interest-only advance loan (Vorausdarlehen). Until allocation you pay its interest plus the monthly saving;
   at allocation savings and Bauspardarlehen settle the advance loan and only the Bauspar loan keeps running.
   It is a Bauspar contract with `prefinance_rate_percent` set. The fee can be given in percent or euros.
+  With `payouts` (month and amount) the advance loan is paid out in stages and interest runs only on what has been
+  paid out so far; the savings run from the first month regardless.
+- **0 %-Finanzierung** (installment purchase): a loan with purpose `zero_percent`. The interest must be 0; the form
+  derives the monthly payment from the amount and the number of months.
 - **Credit line** (Rahmenkredit): limit, amount drawn today, annual rate and a fixed monthly payment. Runs
   like an annuity loan, but money can be taken out again up to the limit. Deposits are special repayments,
   withdrawals are `drawdown` events (money received, so no cashflow outflow). Exceeding the limit is rejected.
@@ -164,6 +168,7 @@ special funds is not covered. Settings (church tax, allowance, Basiszins) are pe
 
 React, Vite, TypeScript, Tailwind and Apache ECharts. Fonts are bundled locally (no external requests).
 The theme follows the system by default; the header button cycles automatic, light and dark and remembers the choice. Colors are CSS variables in `index.css`, charts are recolored in `charts/EChart.tsx`.
+The name in the header opens the account menu (account, household, appearance, sign out, version). Images are built with `APP_VERSION` (the release tag), shown there and returned by `/api/health`.
 
 ```bash
 cd frontend
