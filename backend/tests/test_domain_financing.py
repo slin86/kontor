@@ -5,10 +5,12 @@ import pytest
 
 from kontor.domain.financing import (
     BausparParams,
+    CreditLineParams,
     FinancingError,
     LoanEvent,
     LoanParams,
     bauspar_schedule,
+    credit_line_schedule,
     initial_payment,
     loan_schedule,
 )
@@ -153,3 +155,64 @@ def test_bauspar_saving_more_than_the_contract_sum_is_rejected() -> None:
     too_much = BausparParams(**{**BAUSPAR.__dict__, "monthly_saving": D("600")})
     with pytest.raises(FinancingError, match="angespart"):
         bauspar_schedule(too_much)
+
+
+# --- credit line (Rahmenkredit) ------------------------------------------------------
+
+
+def credit(**kw: object) -> CreditLineParams:
+    base = dict(
+        limit=D("20000"),
+        balance=D("10000"),
+        annual_rate=D("0.06"),
+        monthly_payment=D("500"),
+        start=m(2026, 10),
+    )
+    return CreditLineParams(**{**base, **kw})  # type: ignore[arg-type]
+
+
+def test_credit_line_runs_like_an_annuity_loan_without_events() -> None:
+    s = credit_line_schedule(credit())
+    first = s.rows[0]
+    assert first.interest == D("50.00")  # 10000 * 6 % / 12
+    assert first.principal == D("450.00")
+    assert first.balance == D("9550.00")
+    assert sum(r.principal for r in s.rows) == D("10000")
+    assert s.rows[-1].balance == D("0")
+
+
+def test_drawdown_raises_the_balance_and_is_charged_interest_that_month() -> None:
+    ev = [LoanEvent(m(2026, 11), "drawdown", D("3000"))]
+    s = credit_line_schedule(credit(), ev)
+    nov = s.at(m(2026, 11))
+    assert nov is not None
+    assert nov.drawn == D("3000")
+    assert nov.interest == D("62.75")  # (9550 + 3000) * 6 % / 12
+    assert nov.balance == D("12550.00") - nov.principal
+    assert sum(r.principal for r in s.rows) == D("13000")  # the drawn amount is repaid as well
+
+
+def test_drawdown_above_the_limit_is_rejected() -> None:
+    ev = [LoanEvent(m(2026, 11), "drawdown", D("11000"))]
+    with pytest.raises(FinancingError, match="Rahmen"):
+        credit_line_schedule(credit(), ev)
+
+
+def test_deposit_and_payment_change_shorten_the_term() -> None:
+    base = credit_line_schedule(credit())
+    faster = credit_line_schedule(
+        credit(),
+        [
+            LoanEvent(m(2026, 12), "special_repayment", D("2000")),
+            LoanEvent(m(2027, 1), "payment_change", D("800")),
+        ],
+    )
+    assert len(faster.rows) < len(base.rows)
+    assert faster.at(m(2026, 12)).special == D("2000")  # type: ignore[union-attr]
+
+
+def test_credit_line_rejects_balance_over_limit_and_too_small_payment() -> None:
+    with pytest.raises(FinancingError, match="Rahmen"):
+        credit_line_schedule(credit(balance=D("25000")))
+    with pytest.raises(FinancingError, match="Zinsen"):
+        credit_line_schedule(credit(monthly_payment=D("40")))

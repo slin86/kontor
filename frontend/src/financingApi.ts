@@ -1,6 +1,6 @@
 import { api } from './api'
 
-export type FinancingKind = 'loan' | 'building_savings'
+export type FinancingKind = 'loan' | 'building_savings' | 'credit_line'
 export type Phase = 'not_started' | 'saving' | 'loan' | 'finished'
 
 export interface Financing {
@@ -17,6 +17,8 @@ export interface Financing {
   saved: number | null
   total_interest: number
   remaining_interest: number
+  credit_limit: number | null // credit line only
+  available: number | null // credit line only: what can still be drawn
 }
 
 export interface ScheduleRow {
@@ -28,12 +30,13 @@ export interface ScheduleRow {
   balance: number
   phase: 'saving' | 'loan'
   special: number
+  drawn: number
 }
 
 export interface FinancingEvent {
   id: number
   month: string
-  kind: 'special_repayment' | 'payment_change' | 'rate_change'
+  kind: 'special_repayment' | 'payment_change' | 'rate_change' | 'drawdown'
   value: number // euros, or percent per year for rate changes
   locked: boolean
 }
@@ -93,7 +96,17 @@ export type BausparInput = {
   loan_payment: string
 }
 
-export type FinancingInput = LoanInput | BausparInput
+export type CreditLineInput = {
+  kind: 'credit_line'
+  name: string
+  limit: string
+  balance: string
+  annual_rate_percent: string
+  monthly_payment: string
+  start: string
+}
+
+export type FinancingInput = LoanInput | BausparInput | CreditLineInput
 
 export const financingApi = {
   list: () => api<Financing[]>('/financings'),

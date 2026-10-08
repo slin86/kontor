@@ -39,6 +39,7 @@ class FinancingMonth:
     )
     phase: str = "loan"  # "loan" | "saving"
     special: Decimal = ZERO  # part of ``principal`` that was a special repayment
+    drawn: Decimal = ZERO  # money taken out of a credit line in this month (not an outflow)
 
     @property
     def outflow(self) -> Decimal:
@@ -81,8 +82,8 @@ class LoanEvent:
     """A dated change: extra repayment, new monthly payment or new interest rate."""
 
     month: date
-    kind: str  # "special_repayment" | "payment_change" | "rate_change"
-    value: Decimal  # euros for repayments/payments, annual rate (e.g. 0.035) for rate changes
+    kind: str  # "special_repayment" | "payment_change" | "rate_change" | "drawdown"
+    value: Decimal  # euros for repayments/payments/drawdowns, annual rate (e.g. 0.035) for rates
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,88 @@ def loan_schedule(params: LoanParams, events: list[LoanEvent] | None = None) -> 
             return Schedule(rows, params.monthly_payment)
         month = add_months(month, 1)
     raise FinancingError("Das Darlehen wird innerhalb von 100 Jahren nicht getilgt.")
+
+
+# --------------------------------------------------------------------------------------
+# Credit line (Rahmenkredit)
+# --------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CreditLineParams:
+    limit: Decimal  # the most that may be drawn at any time
+    balance: Decimal  # amount drawn at the start
+    annual_rate: Decimal
+    monthly_payment: Decimal
+    start: date  # month of the first payment
+
+
+def credit_line_schedule(
+    params: CreditLineParams, events: list[LoanEvent] | None = None
+) -> Schedule:
+    """Monthly schedule of a revolving credit line.
+
+    It runs like an annuity loan, but money can be taken out again (``drawdown``) up to the limit,
+    paid back early (``special_repayment``) and the payment or rate can change. Interest is charged
+    on the balance after the month's drawdown. The schedule ends when the balance reaches zero.
+    """
+    p = params
+    if p.balance <= 0:
+        raise FinancingError("Der aktuell genutzte Betrag muss größer als null sein.")
+    if p.limit < p.balance:
+        raise FinancingError("Der genutzte Betrag liegt über dem Rahmen.")
+
+    by_month: dict[date, list[LoanEvent]] = {}
+    for e in events or []:
+        by_month.setdefault(e.month, []).append(e)
+
+    balance = p.balance
+    rate = p.annual_rate
+    payment = p.monthly_payment
+    month = p.start
+    rows: list[FinancingMonth] = []
+    for _ in range(MAX_MONTHS):
+        specials = ZERO
+        drawn = ZERO
+        for e in by_month.get(month, []):
+            if e.kind == "rate_change":
+                rate = e.value
+            elif e.kind == "payment_change":
+                payment = e.value
+            elif e.kind == "special_repayment":
+                specials += e.value
+            elif e.kind == "drawdown":
+                drawn += e.value
+
+        balance += drawn
+        if balance > p.limit:
+            raise FinancingError(
+                f"Im Monat {month:%m/%Y} wäre der Rahmen von {p.limit} € überschritten "
+                f"({balance} € genutzt)."
+            )
+        interest = cents(balance * rate / 12)
+        if payment <= interest:
+            raise FinancingError(
+                f"Die Rate von {payment} € deckt im Monat {month:%m/%Y} "
+                f"die Zinsen von {interest} € nicht."
+            )
+        principal = min(payment - interest, balance)
+        special = min(specials, balance - principal)
+        balance = balance - principal - special
+        rows.append(
+            FinancingMonth(
+                month=month,
+                interest=interest,
+                principal=principal + special,
+                balance=balance,
+                special=special,
+                drawn=drawn,
+            )
+        )
+        if balance <= 0:
+            return Schedule(rows, p.monthly_payment)
+        month = add_months(month, 1)
+    raise FinancingError("Der Rahmenkredit wird innerhalb von 100 Jahren nicht getilgt.")
 
 
 # --------------------------------------------------------------------------------------
