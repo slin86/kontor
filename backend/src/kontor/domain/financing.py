@@ -251,6 +251,9 @@ class BausparParams:
     # Bausparfinanzierung: the whole contract sum is paid out on day 1 as an interest-only
     # advance loan (Vorausdarlehen) at this rate until the contract is allocated.
     prefinance_rate: Decimal | None = None
+    # staged payouts (month, amount); interest runs on what has been paid out so far.
+    # Without them the whole contract sum counts from the first month.
+    payouts: tuple[tuple[date, Decimal], ...] | None = None
     deposit_rate: Decimal = ZERO  # interest on savings per year, credited every December
     loan_rate: Decimal = ZERO  # interest of the Bauspardarlehen per year
     loan_payment: Decimal = ZERO  # monthly payment in the loan phase (Tilgungsrate)
@@ -271,9 +274,17 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
         raise FinancingError("Der Sparbeitrag muss größer als null sein.")
 
     fee = p.fee_amount if p.fee_amount is not None else cents(p.contract_sum * p.fee_percent)
-    advance_interest = (
-        cents(p.contract_sum * p.prefinance_rate / 12) if p.prefinance_rate is not None else ZERO
-    )
+
+    def advance_interest(month: date) -> Decimal:
+        if p.prefinance_rate is None:
+            return ZERO
+        drawn = (
+            p.contract_sum
+            if p.payouts is None
+            else sum((a for m, a in p.payouts if m <= month), ZERO)
+        )
+        return cents(drawn * p.prefinance_rate / 12)
+
     rows: list[FinancingMonth] = []
     balance = ZERO
     accrued = ZERO
@@ -287,7 +298,7 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
         rows.append(
             FinancingMonth(
                 month=month,
-                interest=advance_interest,
+                interest=advance_interest(month),
                 saving=p.monthly_saving,
                 fee=fee if month == p.start else ZERO,
                 balance=cents(balance),

@@ -15,6 +15,7 @@ import { monthLabel } from '../monthUtils'
 const KIND_LABEL: Record<string, string> = {
   real_estate: 'Immobilienfinanzierung',
   consumer: 'Kredit',
+  zero_percent: '0 %-Finanzierung',
   other: 'Kredit',
   building_savings: 'Bausparvertrag',
   credit_line: 'Rahmenkredit',

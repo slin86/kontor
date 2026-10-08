@@ -88,9 +88,13 @@ def _summary(f: Financing, schedule: Schedule) -> FinancingOut:
     )
     if f.kind == FinancingKind.BUILDING_SAVINGS and phase in ("not_started", "saving"):
         # the Bauspar loan only exists after allocation; an advance loan is paid out on day 1
-        remaining_debt = (
-            float(Decimal(f.params["contract_sum"])) if prefinanced and phase == "saving" else None
+        payouts = f.params.get("payouts")
+        paid_out = (
+            sum(Decimal(x["amount"]) for x in payouts if parse_month(x["month"]) <= today)
+            if payouts
+            else Decimal(f.params["contract_sum"])
         )
+        remaining_debt = float(paid_out) if prefinanced and phase == "saving" else None
 
     saved: float | None = None
     if f.kind == FinancingKind.BUILDING_SAVINGS:

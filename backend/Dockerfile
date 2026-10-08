@@ -17,6 +17,8 @@ RUN useradd --system --uid 10001 --no-create-home kontor
 # numeric, so Kubernetes can verify runAsNonRoot
 USER 10001
 
+ARG APP_VERSION=dev
+ENV KONTOR_VERSION=$APP_VERSION
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=5 \

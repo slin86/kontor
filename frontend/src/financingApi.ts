@@ -77,13 +77,15 @@ export interface Outlook {
 export type LoanInput = {
   kind: 'loan'
   name: string
-  purpose: 'real_estate' | 'consumer' | 'other'
+  purpose: 'real_estate' | 'consumer' | 'zero_percent' | 'other'
   principal: string
   annual_rate_percent: string
   monthly_payment?: string
   initial_repayment_percent?: string
   start: string
 }
+
+export type Payout = { month: string; amount: string }
 
 export type BausparInput = {
   kind: 'building_savings'
@@ -96,6 +98,7 @@ export type BausparInput = {
   fee_amount?: string // the fee in euros instead of fee_percent
   deposit_rate_percent: string
   prefinance_rate_percent?: string // set for a Bausparfinanzierung
+  payouts?: Payout[] // staged payouts of the advance loan
   loan_rate_percent: string
   loan_payment: string
 }

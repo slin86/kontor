@@ -68,6 +68,11 @@ def to_params(body: LoanIn | BausparIn | CreditLineIn) -> dict[str, Any]:
         "prefinance_rate_percent": (
             str(body.prefinance_rate_percent) if body.prefinance_rate_percent is not None else None
         ),
+        "payouts": (
+            [{"month": format_month(p.month), "amount": str(p.amount)} for p in body.payouts]
+            if body.payouts
+            else None
+        ),
         "loan_rate_percent": str(body.loan_rate_percent),
         "loan_payment": str(body.loan_payment),
     }
@@ -116,6 +121,9 @@ def schedule_for(f: Financing) -> Schedule:
                 if p.get("prefinance_rate_percent") is not None
                 else None
             ),
+            payouts=tuple((parse_month(x["month"]), Decimal(x["amount"])) for x in p["payouts"])
+            if p.get("payouts")
+            else None,
             loan_rate=Decimal(p["loan_rate_percent"]) / PERCENT,
             loan_payment=Decimal(p["loan_payment"]),
         ),

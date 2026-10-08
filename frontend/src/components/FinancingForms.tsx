@@ -10,6 +10,7 @@ import {
   type FinancingInput,
   type FinancingKind,
   type LoanInput,
+  type Payout,
 } from '../financingApi'
 import { useMonth } from '../month'
 import { addMonths } from '../monthUtils'
@@ -105,6 +106,83 @@ export function LoanFields({ initial }: { initial?: Initial }) {
   )
 }
 
+/** A financing without interest, e.g. an installment purchase: amount and term or payment. */
+export function ZeroFields({ initial }: { initial?: Initial }) {
+  const [mode, setMode] = useState<'months' | 'payment'>(initial?.monthly_payment ? 'payment' : 'months')
+  return (
+    <>
+      <Field label="Bezeichnung" name="name" initial={initial?.name} />
+      <input type="hidden" name="purpose" value="zero_percent" />
+      <input type="hidden" name="annual_rate_percent" value="0" />
+      <Field label="Finanzierter Betrag in Euro" name="principal" type="decimal" initial={initial?.principal} />
+      <label className="block text-sm">
+        Rate festlegen über
+        <select value={mode} onChange={(e) => setMode(e.target.value as 'months' | 'payment')} className={input}>
+          <option value="months">Anzahl Monate</option>
+          <option value="payment">Monatliche Rate in Euro</option>
+        </select>
+      </label>
+      {mode === 'months' ? (
+        <Field
+          label="Laufzeit in Monaten"
+          name="months"
+          type="number"
+          hint="Die Rate ergibt sich aus Betrag geteilt durch Monate, aufgerundet auf den Cent."
+        />
+      ) : (
+        <Field label="Monatliche Rate in Euro" name="monthly_payment" type="decimal" initial={initial?.monthly_payment} />
+      )}
+      <Field label="Erste Rate im Monat" name="start" type="month" initial={initial?.start} />
+    </>
+  )
+}
+
+/** Payouts of the advance loan: from each month on, interest runs on the amount paid out so far. */
+function PayoutRows({ initial }: { initial?: Payout[] }) {
+  const [rows, setRows] = useState<{ month: string; amount: string }[]>(
+    (initial ?? []).map((p) => ({ month: p.month, amount: show(p.amount) })),
+  )
+  const set = (i: number, patch: Partial<{ month: string; amount: string }>) =>
+    setRows(rows.map((r, n) => (n === i ? { ...r, ...patch } : r)))
+  return (
+    <fieldset className="sm:col-span-2 lg:col-span-3">
+      <legend className="text-sm">Auszahlungen des Vorausdarlehens</legend>
+      <p className="mb-2 text-xs text-tinte-weich">
+        Zinsen fallen ab dem Monat der Auszahlung an, nur auf den bis dahin ausgezahlten Betrag. Ohne Einträge wird die ganze Summe im ersten Monat
+        ausgezahlt.
+      </p>
+      <ul className="space-y-2">
+        {rows.map((r, i) => (
+          <li key={i} className="flex flex-wrap items-end gap-3">
+            <label className="block text-sm">
+              Monat
+              <input name="payout_month" type="month" required value={r.month} onChange={(e) => set(i, { month: e.target.value })} className={input} />
+            </label>
+            <label className="block text-sm">
+              Betrag in Euro
+              <input
+                name="payout_amount"
+                required
+                inputMode="decimal"
+                pattern="[0-9]+([.,][0-9]+)?"
+                value={r.amount}
+                onChange={(e) => set(i, { amount: e.target.value })}
+                className={input}
+              />
+            </label>
+            <button type="button" onClick={() => setRows(rows.filter((_, n) => n !== i))} className={secondary}>
+              Entfernen
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => setRows([...rows, { month: '', amount: '' }])} className={`mt-2 ${secondary}`}>
+        Auszahlung hinzufügen
+      </button>
+    </fieldset>
+  )
+}
+
 function FeeField({ initial }: { initial?: Initial }) {
   const [unit, setUnit] = useState<'percent' | 'euro'>(initial?.fee_amount ? 'euro' : 'percent')
   return (
@@ -148,7 +226,7 @@ export function BausparFields({ initial, prefinanced }: { initial?: Initial; pre
         name="contract_sum"
         type="decimal"
         initial={initial?.contract_sum}
-        hint={prefinanced ? 'Die ganze Summe wird am ersten Tag ausgezahlt.' : undefined}
+        hint={prefinanced ? 'Ohne einzelne Auszahlungen (siehe unten) wird die ganze Summe am ersten Tag ausgezahlt.' : undefined}
       />
       {prefinanced && (
         <Field
@@ -159,6 +237,7 @@ export function BausparFields({ initial, prefinanced }: { initial?: Initial; pre
           hint="Bis zur Zuteilung zahlst du nur diese Zinsen, keine Tilgung."
         />
       )}
+      {prefinanced && <PayoutRows initial={(initial as unknown as { payouts?: Payout[] } | undefined)?.payouts ?? undefined} />}
       <Field label="Sparbeitrag pro Monat in Euro" name="monthly_saving" type="decimal" initial={initial?.monthly_saving} />
       <Field label="Vertragsbeginn" name="start" type="month" initial={initial?.start} />
       <Field label="Zuteilung im Monat" name="allocation" type="month" initial={initial?.allocation} />
@@ -202,6 +281,10 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
       start: s('start'),
     }
     if (f.get('monthly_payment')) out.monthly_payment = d('monthly_payment')
+    if (f.get('months')) {
+      const months = Number(f.get('months'))
+      out.monthly_payment = (Math.ceil((Number(out.principal) / months) * 100) / 100).toFixed(2)
+    }
     if (f.get('initial_repayment_percent')) out.initial_repayment_percent = d('initial_repayment_percent')
     return out
   }
@@ -217,6 +300,9 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
     }
     return out
   }
+  const months = f.getAll('payout_month').map(String)
+  const amounts = f.getAll('payout_amount').map((v) => decimalString(v))
+  const payouts: Payout[] = months.map((month, i) => ({ month, amount: amounts[i] }))
   const out: BausparInput = {
     kind: 'building_savings',
     name: s('name'),
@@ -227,6 +313,7 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
     ...(f.get('fee_unit') === 'euro' ? { fee_amount: d('fee_value') } : { fee_percent: d('fee_value') }),
     deposit_rate_percent: d('deposit_rate_percent'),
     ...(f.get('prefinance_rate_percent') ? { prefinance_rate_percent: d('prefinance_rate_percent') } : {}),
+    ...(payouts.length > 0 ? { payouts } : {}),
     loan_rate_percent: d('loan_rate_percent'),
     loan_payment: d('loan_payment'),
   }
@@ -246,10 +333,11 @@ function useFinancingMutation<V>(fn: (v: V) => Promise<FinancingDetail>, onDone:
 }
 
 /** The form tabs. A Bausparfinanzierung is a Bauspar contract that has an advance loan. */
-type FormKind = FinancingKind | 'prefinanced'
+type FormKind = FinancingKind | 'prefinanced' | 'zero'
 
 function KindFields({ kind, initial }: { kind: FormKind; initial?: Initial }) {
   if (kind === 'loan') return <LoanFields initial={initial} />
+  if (kind === 'zero') return <ZeroFields initial={initial} />
   if (kind === 'credit_line') return <CreditLineFields initial={initial} />
   return <BausparFields initial={initial} prefinanced={kind === 'prefinanced'} />
 }
@@ -263,7 +351,9 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    mutation.mutate(readInput(kind === 'prefinanced' ? 'building_savings' : kind, new FormData(e.currentTarget)))
+    mutation.mutate(
+      readInput(kind === 'prefinanced' ? 'building_savings' : kind === 'zero' ? 'loan' : kind, new FormData(e.currentTarget)),
+    )
   }
 
   const initial = { start: selected, allocation: addMonths(selected, 120) }
@@ -273,6 +363,7 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
         {(
           [
             ['loan', 'Kredit oder Immobilienfinanzierung'],
+            ['zero', '0 %-Finanzierung'],
             ['credit_line', 'Rahmenkredit'],
             ['building_savings', 'Bausparvertrag'],
             ['prefinanced', 'Bausparfinanzierung'],
@@ -330,7 +421,7 @@ export function CorrectionForm({ detail, onDone }: { detail: FinancingDetail; on
         für Eingabefehler. Spätere Änderungen wie Sondertilgungen, Einzahlungen oder Entnahmen trägst du als Ereignis ein.
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KindFields kind={detail.prefinanced ? 'prefinanced' : detail.kind} initial={detail.input} />
+        <KindFields kind={detail.prefinanced ? 'prefinanced' : detail.purpose === 'zero_percent' ? 'zero' : detail.kind} initial={detail.input} />
         <Field label="Begründung (wird im Protokoll gespeichert)" name="reason" initial="" wide />
       </div>
       <div className="mt-4 flex items-center gap-2">

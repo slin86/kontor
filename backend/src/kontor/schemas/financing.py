@@ -13,7 +13,7 @@ Percent = Annotated[Decimal, Field(ge=0, le=30, max_digits=8, decimal_places=4)]
 class LoanIn(BaseModel):
     kind: Literal["loan"] = "loan"
     name: str = Field(min_length=1, max_length=120)
-    purpose: Literal["real_estate", "consumer", "other"] = "real_estate"
+    purpose: Literal["real_estate", "consumer", "zero_percent", "other"] = "real_estate"
     principal: Money
     annual_rate_percent: Percent
     monthly_payment: Money | None = None
@@ -22,9 +22,18 @@ class LoanIn(BaseModel):
 
     @model_validator(mode="after")
     def _one_payment_input(self) -> Self:
+        if self.purpose == "zero_percent" and self.annual_rate_percent != 0:
+            raise ValueError("Eine 0 %-Finanzierung hat keinen Zins.")
         if (self.monthly_payment is None) == (self.initial_repayment_percent is None):
             raise ValueError("Gib entweder die monatliche Rate oder die Anfangstilgung an.")
         return self
+
+
+class Payout(BaseModel):
+    """One payment of the advance loan: from this month on interest runs on the amount."""
+
+    month: Month
+    amount: Money
 
 
 class BausparIn(BaseModel):
@@ -39,8 +48,25 @@ class BausparIn(BaseModel):
     deposit_rate_percent: Annotated[Decimal, Field(ge=0, le=10)] = Decimal("0")
     # set for a Bausparfinanzierung: interest of the advance loan that is paid out on day 1
     prefinance_rate_percent: Percent | None = None
+    # staged payouts of the advance loan; without them the whole sum is paid out on day 1
+    payouts: list[Payout] | None = Field(default=None, max_length=24)
     loan_rate_percent: Percent = Decimal("0")
     loan_payment: Money  # monthly payment in the loan phase
+
+    @model_validator(mode="after")
+    def _payouts_fit(self) -> Self:
+        if not self.payouts:
+            return self
+        if self.prefinance_rate_percent is None:
+            raise ValueError(
+                "Auszahlungen gibt es nur bei einer Bausparfinanzierung mit Vorausdarlehen."
+            )
+        if sum(p.amount for p in self.payouts) > self.contract_sum:
+            raise ValueError("Die Auszahlungen übersteigen zusammen die Darlehenssumme.")
+        for p in self.payouts:
+            if not self.start <= p.month < self.allocation:
+                raise ValueError("Jede Auszahlung liegt zwischen Vertragsbeginn und Zuteilung.")
+        return self
 
 
 class CreditLineIn(BaseModel):

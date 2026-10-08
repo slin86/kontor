@@ -1,5 +1,7 @@
 """FastAPI application factory."""
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -31,7 +33,8 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health", tags=["meta"])
     def health() -> dict[str, str]:
-        return {"status": "ok"}
+        # the image build sets KONTOR_VERSION to the release tag, e.g. sha-1a2b3c4
+        return {"status": "ok", "version": os.environ.get("KONTOR_VERSION", "dev")}
 
     app.include_router(auth.router)
     app.include_router(cashflow.router)
