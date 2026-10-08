@@ -31,8 +31,18 @@ from kontor.schemas.actuals import (
 )
 from kontor.services.audit import record as audit
 from kontor.services.depot_book import load_instruments, to_position
+from kontor.services.people import get_person, own_person
 
 router = APIRouter(prefix="/api/actuals", tags=["actuals"])
+
+
+PersonParam = Annotated[
+    int | None, Query(description="Only this person's data; the whole household when left out")
+]
+
+
+def _scope(db: Session, user: CurrentUser, person: int | None) -> int | None:
+    return get_person(db, user.household_id, person).id if person is not None else None
 
 
 def _instrument(db: Session, user: CurrentUser, instrument_id: int) -> Instrument:
@@ -68,14 +78,17 @@ def _tx_out(t: DepotTransaction) -> TransactionOut:
 
 @router.get("/values", response_model=list[ValueOut])
 def list_values(
-    user: CurrentUser, db: DbSession, instrument_id: int | None = None
+    user: CurrentUser, db: DbSession, instrument_id: int | None = None, person: PersonParam = None
 ) -> list[ValueOut]:
+    scope = _scope(db, user, person)
     stmt = (
         select(ActualValue)
         .join(Instrument, Instrument.id == ActualValue.instrument_id)
         .where(Instrument.household_id == user.household_id)
         .order_by(ActualValue.month.desc())
     )
+    if scope is not None:
+        stmt = stmt.where(Instrument.person_id == scope)
     if instrument_id is not None:
         stmt = stmt.where(ActualValue.instrument_id == instrument_id)
     return [_value_out(v) for v in db.scalars(stmt)]
@@ -169,13 +182,19 @@ def list_transactions(
     db: DbSession,
     instrument_id: int | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    person: PersonParam = None,
 ) -> list[TransactionOut]:
+    scope = _scope(db, user, person)
     stmt = (
         select(DepotTransaction)
         .where(DepotTransaction.household_id == user.household_id)
         .order_by(DepotTransaction.day.desc(), DepotTransaction.id.desc())
         .limit(limit)
     )
+    if scope is not None:
+        stmt = stmt.join(Instrument, Instrument.id == DepotTransaction.instrument_id).where(
+            Instrument.person_id == scope
+        )
     if instrument_id is not None:
         stmt = stmt.where(DepotTransaction.instrument_id == instrument_id)
     return [_tx_out(t) for t in db.scalars(stmt)]
@@ -240,11 +259,17 @@ def _parse(body: ImportIn) -> broker_csv.ParseResult:
 
 
 def _resolve(
-    db: Session, user: CurrentUser, mapping: dict[str, int]
+    db: Session, user: CurrentUser, mapping: dict[str, int], person: int | None
 ) -> tuple[dict[str, int], set[str]]:
-    """ISIN -> instrument id: the household's positions, overridden by the user's choice."""
-    by_isin = {i.isin: i.id for i in load_instruments(db, user.household_id) if i.isin is not None}
-    own = {i.id for i in load_instruments(db, user.household_id)}
+    """ISIN -> instrument id: the person's positions, overridden by the user's choice.
+
+    Several people may hold the same fund, so a file is always matched against one person: the
+    given one, or the signed-in user's own.
+    """
+    owner = _scope(db, user, person) or own_person(db, user).id
+    positions = load_instruments(db, user.household_id, owner)
+    by_isin = {i.isin: i.id for i in positions if i.isin is not None}
+    own = {i.id for i in positions}
     for isin, instrument_id in mapping.items():
         if instrument_id not in own:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Position nicht gefunden")
@@ -264,7 +289,7 @@ def _resolve(
 def import_preview(body: ImportIn, user: CurrentUser, db: DbSession) -> ImportPreview:
     """Parse the file and show what would happen, without writing anything."""
     parsed = _parse(body)
-    by_isin, existing = _resolve(db, user, body.mapping)
+    by_isin, existing = _resolve(db, user, body.mapping, body.person_id)
     rows: list[ImportRow] = []
     unmatched: dict[str | None, UnmatchedIsin] = {}
     for r in parsed.rows:
@@ -301,7 +326,7 @@ def import_preview(body: ImportIn, user: CurrentUser, db: DbSession) -> ImportPr
 def import_transactions(body: ImportIn, user: CurrentUser, db: DbSession) -> ImportResult:
     """Store the rows that belong to a position. Rows seen before (same id) are skipped."""
     parsed = _parse(body)
-    by_isin, existing = _resolve(db, user, body.mapping)
+    by_isin, existing = _resolve(db, user, body.mapping, body.person_id)
     imported = duplicates = unmatched = 0
     per_instrument: dict[int, int] = defaultdict(int)
     for r in parsed.rows:
@@ -342,10 +367,12 @@ def import_transactions(body: ImportIn, user: CurrentUser, db: DbSession) -> Imp
 
 
 @router.get("/compare", response_model=ComparisonOut)
-def compare(user: CurrentUser, db: DbSession) -> ComparisonOut:
+def compare(user: CurrentUser, db: DbSession, person: PersonParam = None) -> ComparisonOut:
     """Plan against reality from the earliest start up to the current month."""
     today = current_month()
-    instruments = load_instruments(db, user.household_id)
+    scope = _scope(db, user, person)
+    instruments = load_instruments(db, user.household_id, scope)
+    shown = {i.id for i in instruments}
     positions = [to_position(i) for i in instruments]
     first = min((p.start for p in positions), default=today)
     months = month_range(first, today)
@@ -357,7 +384,8 @@ def compare(user: CurrentUser, db: DbSession) -> ComparisonOut:
         .join(Instrument, Instrument.id == ActualValue.instrument_id)
         .where(Instrument.household_id == user.household_id)
     ):
-        values[(v.instrument_id, v.month)] = Decimal(v.value)
+        if v.instrument_id in shown:
+            values[(v.instrument_id, v.month)] = Decimal(v.value)
     valued = {iid for iid, _ in values}
 
     net_by_month: dict[tuple[int, date], Decimal] = defaultdict(Decimal)
@@ -370,6 +398,8 @@ def compare(user: CurrentUser, db: DbSession) -> ComparisonOut:
         )
     ):
         assert t.instrument_id is not None
+        if t.instrument_id not in shown:
+            continue
         traded.add(t.instrument_id)
         sign = 1 if t.kind == "buy" else -1
         net_by_month[(t.instrument_id, date(t.day.year, t.day.month, 1))] += sign * Decimal(

@@ -95,6 +95,14 @@ Not covered yet: deleting a financing, scenarios with several interest paths.
 Not covered yet: tax, actual values (plan vs. actual), instrument search and cost comparison,
 CSV import, deleting positions.
 
+## People and household
+
+A household has several **people**. Every user gets one on registration; children (or anyone without a login) are added on the *Haushalt* page.
+Positions, actual values, transactions, CSV imports and tax settings belong to one person. Cashflow and financings stay household-wide.
+The Depot and Plan & Ist pages have a switcher (one person, or *Alle zusammen*, which sums per-owner taxes with each owner's own settings).
+The *Haushalt* page also manages login members, the invite code (renewing invalidates the old one), the household name and the own profile/password.
+Migration `0008` assigns existing positions to the earliest member and moves the tax settings to their person.
+
 ## Instrument catalog
 
 - Built-in reference data: 59 widely used UCITS ETFs (MSCI World, S&P 500, FTSE All-World, MSCI ACWI,

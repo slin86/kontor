@@ -1,5 +1,6 @@
 """Depot plan: instruments with dated savings rates and one-off payments, plus the projection."""
 
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from typing import Annotated, Any
@@ -30,6 +31,7 @@ from kontor.schemas.depot import (
     InstrumentOut,
     OneOffIn,
     OneOffOut,
+    OwnerChange,
     ProjectionInstrument,
     ProjectionOut,
     ProjectionPoint,
@@ -38,6 +40,7 @@ from kontor.schemas.depot import (
 )
 from kontor.services.audit import record as audit
 from kontor.services.depot_book import load_instruments, rate_specs, tax_config, to_position
+from kontor.services.people import get_person, own_person
 
 router = APIRouter(prefix="/api/depot", tags=["depot"])
 
@@ -89,6 +92,7 @@ def _summary(i: Instrument) -> InstrumentOut:
     last = rows[-1] if rows else None
     return InstrumentOut(
         id=i.id,
+        person_id=i.person_id,
         kind=i.kind.value,
         name=i.name,
         isin=i.isin,
@@ -160,9 +164,21 @@ def _rates_snapshot(i: Instrument) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------------------
 
 
+PersonParam = Annotated[
+    int | None, Query(description="Only this person's positions; all positions when left out")
+]
+
+
+def _scope(db: Session, user: CurrentUser, person: int | None) -> int | None:
+    if person is None:
+        return None
+    return get_person(db, user.household_id, person).id
+
+
 @router.get("", response_model=DepotOut)
-def depot(user: CurrentUser, db: DbSession) -> DepotOut:
-    instruments = [_summary(i) for i in load_instruments(db, user.household_id)]
+def depot(user: CurrentUser, db: DbSession, person: PersonParam = None) -> DepotOut:
+    scope = _scope(db, user, person)
+    instruments = [_summary(i) for i in load_instruments(db, user.household_id, scope)]
     return DepotOut(
         base_rate=sum(i.current_rate for i in instruments),
         planned_value=sum(i.planned_value for i in instruments),
@@ -173,8 +189,14 @@ def depot(user: CurrentUser, db: DbSession) -> DepotOut:
 
 @router.post("/instruments", response_model=InstrumentDetailOut, status_code=201)
 def create_instrument(body: InstrumentIn, user: CurrentUser, db: DbSession) -> InstrumentDetailOut:
+    owner = (
+        get_person(db, user.household_id, body.person_id)
+        if body.person_id is not None
+        else own_person(db, user)
+    )
     i = Instrument(
         household_id=user.household_id,
+        person_id=owner.id,
         kind=InstrumentKind(body.kind),
         name=body.name.strip(),
         isin=body.isin.upper() if body.isin else None,
@@ -196,6 +218,22 @@ def create_instrument(body: InstrumentIn, user: CurrentUser, db: DbSession) -> I
         "instrument",
         i.id,
         after={**_snapshot(i), "rates": _rates_snapshot(i)},
+    )
+    return _detail(i)
+
+
+@router.put("/instruments/{instrument_id}/person", response_model=InstrumentDetailOut)
+def change_owner(
+    instrument_id: int, body: OwnerChange, user: CurrentUser, db: DbSession
+) -> InstrumentDetailOut:
+    """Hand a position to another person, for example when it was entered for the wrong one."""
+    i = _get(db, user, instrument_id)
+    owner = get_person(db, user.household_id, body.person_id)
+    before = {"person_id": i.person_id}
+    i.person_id = owner.id
+    db.flush()
+    audit(
+        db, user, "owner_change", "instrument", i.id, before=before, after={"person_id": owner.id}
     )
     return _detail(i)
 
@@ -376,10 +414,12 @@ def projection(
         Decimal, Query(ge=-15, le=15, description="Percentage points")
     ] = Decimal(0),
     inflation: Annotated[Decimal, Query(ge=0, le=20, description="Percent per year")] = Decimal(0),
+    person: PersonParam = None,
 ) -> ProjectionOut:
     """Planned development of the depot, from the earliest start (history) into the future."""
     today = current_month()
-    instruments = load_instruments(db, user.household_id)
+    scope = _scope(db, user, person)
+    instruments = load_instruments(db, user.household_id, scope)
     positions = [to_position(i) for i in instruments]
 
     earliest = min((p.start for p in positions), default=today)
@@ -395,11 +435,28 @@ def projection(
         raise HTTPException(422, str(e)) from e
 
     infl = inflation / 100
-    config = tax_config(db, user.household_id)
+    # Allowance and church tax are personal, so every owner is taxed with their own settings.
+    by_owner: dict[int, list[dom.Position]] = defaultdict(list)
+    for i, pos in zip(instruments, positions, strict=True):
+        by_owner[i.person_id].append(pos)
+    taxes: dict[date, tax_dom.TaxMonth] = {}
     try:
-        taxes = {t.month: t for t in tax_dom.project_tax(positions, first, last, config, shift)}
+        for owner_id, group in by_owner.items():
+            for t in tax_dom.project_tax(group, first, last, tax_config(db, owner_id), shift):
+                known = taxes.get(t.month)
+                taxes[t.month] = (
+                    t
+                    if known is None
+                    else tax_dom.TaxMonth(
+                        t.month, known.vorab_paid + t.vorab_paid, known.sale_tax + t.sale_tax
+                    )
+                )
     except dom.DepotError as e:
         raise HTTPException(422, str(e)) from e
+    shown = scope if scope is not None else own_person(db, user).id
+    config = tax_config(db, shown)
+    for m in months:  # months without any position still need a (zero) tax row
+        taxes.setdefault(m.month, tax_dom.TaxMonth(m.month, Decimal(0), Decimal(0)))
 
     def real(value: Decimal, month: date) -> float:
         # Today's purchasing power: later months are deflated, past months stay as they are.

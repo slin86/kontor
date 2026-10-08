@@ -50,6 +50,8 @@ class TransactionOut(BaseModel):
 class ImportIn(BaseModel):
     csv: str = Field(min_length=1, max_length=8_000_000)
     mapping: dict[str, int] = Field(default_factory=dict)  # ISIN -> instrument id
+    # whose positions the file belongs to; the signed-in user's own person when left out
+    person_id: int | None = None
 
 
 class ImportRow(BaseModel):
