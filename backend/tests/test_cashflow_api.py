@@ -254,3 +254,10 @@ def test_invalid_month_is_rejected(client: TestClient) -> None:
 
 def test_requires_login(client: TestClient) -> None:
     assert client.get("/api/cashflow/summary").status_code == 401
+
+
+def test_semiannual_items_are_normalised_to_months(client: TestClient) -> None:
+    _login_new_household(client)
+    _create_item(client, "Versicherung", "Versicherungen", "600", frequency="semiannual")
+    s = client.get("/api/cashflow/summary", params={"month": "2026-06"}).json()
+    assert s["expenses"] == 100

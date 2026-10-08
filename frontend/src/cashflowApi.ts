@@ -1,7 +1,7 @@
 import { api } from './api'
 import { personQuery } from './peopleApi'
 
-export type Frequency = 'monthly' | 'quarterly' | 'yearly'
+export type Frequency = 'monthly' | 'quarterly' | 'semiannual' | 'yearly'
 export type Kind = 'income' | 'expense'
 
 export interface Category {

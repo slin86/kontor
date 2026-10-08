@@ -8,5 +8,6 @@ export const percent = (n: number): string => pct.format(n)
 export const FREQUENCY_LABEL: Record<string, string> = {
   monthly: 'monatlich',
   quarterly: 'vierteljährlich',
+  semiannual: 'halbjährlich',
   yearly: 'jährlich',
 }

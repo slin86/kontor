@@ -10,7 +10,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 CENT = Decimal("0.01")
-FREQUENCY_MONTHS = {"monthly": 1, "quarterly": 3, "yearly": 12}
+FREQUENCY_MONTHS = {"monthly": 1, "quarterly": 3, "semiannual": 6, "yearly": 12}
 
 
 def cents(value: Decimal) -> Decimal:
