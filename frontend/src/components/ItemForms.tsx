@@ -178,7 +178,7 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
   )
 }
 
-type Mode = 'change' | 'spread' | 'end' | 'correct'
+type Mode = 'change' | 'spread' | 'start' | 'end' | 'correct'
 
 export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void }) {
   const { selected, current, isLocked } = useMonth()
@@ -192,6 +192,7 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
   )
   const [spread, setSpread] = useState(item.spread)
   const setSpreadMutation = useCashflowMutation((v: boolean) => cashflowApi.setSpread(item.id, v), onDone)
+  const start = useCashflowMutation((v: { start_from: string; reason?: string }) => cashflowApi.startEarlier(item.id, v), onDone)
   const end = useCashflowMutation((v: { end_from: string }) => cashflowApi.endItem(item.id, v), onDone)
   const correct = useCashflowMutation(
     (v: { reason: string; amount?: string; frequency?: Frequency }) =>
@@ -213,6 +214,9 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
       })
     } else if (mode === 'spread') {
       setSpreadMutation.mutate(spread)
+    } else if (mode === 'start') {
+      const reason = String(f.get('reason') ?? '').trim()
+      start.mutate({ start_from: String(f.get('start_from')), ...(reason ? { reason } : {}) })
     } else if (mode === 'end') {
       end.mutate({ end_from: String(f.get('end_from')) })
     } else {
@@ -224,15 +228,17 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
     }
   }
 
+  const isFirst = item.versions[0]?.id === active.id
   const periodic = active.frequency !== 'monthly'
   const tabs: [Mode, string][] = [
     ['change', 'Ab einem Monat ändern'],
     ...(periodic ? ([['spread', 'Aufteilung']] as [Mode, string][]) : []),
+    ...(isFirst ? ([['start', 'Früher beginnen']] as [Mode, string][]) : []),
     ['end', 'Beenden'],
     ['correct', 'Korrigieren'],
   ]
-  const error = { change: change.error, spread: setSpreadMutation.error, end: end.error, correct: correct.error }[mode]
-  const pending = change.isPending || end.isPending || correct.isPending || setSpreadMutation.isPending
+  const error = { change: change.error, spread: setSpreadMutation.error, start: start.error, end: end.error, correct: correct.error }[mode]
+  const pending = change.isPending || end.isPending || correct.isPending || setSpreadMutation.isPending || start.isPending
 
   let fields: ReactNode
   if (mode === 'change') {
@@ -261,6 +267,22 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
     )
   } else if (mode === 'spread') {
     fields = <SpreadCheckbox checked={spread} onChange={setSpread} />
+  } else if (mode === 'start') {
+    fields = (
+      <>
+        <label className="block text-sm">
+          Neuer erster Monat
+          <input name="start_from" type="month" required max={addMonths(active.valid_from, -1)} defaultValue={addMonths(active.valid_from, -1)} className={input} />
+        </label>
+        <label className="block text-sm sm:col-span-2">
+          Begründung (nötig für abgeschlossene Monate)
+          <input name="reason" minLength={3} maxLength={500} placeholder="z. B. Vorjahr nachgetragen" className={input} />
+        </label>
+        <p className="max-w-xl text-sm text-tinte-weich sm:col-span-3">
+          Der Posten gilt mit demselben Betrag schon ab diesem Monat. So trägst du Vergangenheit nach, ohne die Posten einzeln anzulegen.
+        </p>
+      </>
+    )
   } else if (mode === 'end') {
     fields = (
       <label className="block text-sm">
@@ -317,7 +339,7 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
       <div className="grid gap-4 sm:grid-cols-3">{fields}</div>
       <div className="mt-4 flex items-center gap-2">
         <button type="submit" disabled={pending} className={primary}>
-          {mode === 'change' ? 'Änderung speichern' : mode === 'spread' ? 'Aufteilung speichern' : mode === 'end' ? 'Posten beenden' : 'Korrektur speichern'}
+          {mode === 'change' ? 'Änderung speichern' : mode === 'spread' ? 'Aufteilung speichern' : mode === 'start' ? 'Beginn vorverlegen' : mode === 'end' ? 'Posten beenden' : 'Korrektur speichern'}
         </button>
         <button type="button" onClick={onDone} className={secondary}>
           Abbrechen

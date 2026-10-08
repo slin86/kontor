@@ -100,6 +100,11 @@ class ItemEnd(BaseModel):
     end_from: Month  # first month in which the item no longer applies
 
 
+class ItemStart(BaseModel):
+    start_from: Month  # earlier first month of the item
+    reason: str | None = Field(default=None, min_length=3, max_length=500)
+
+
 class ItemRename(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     category_id: int | None = None

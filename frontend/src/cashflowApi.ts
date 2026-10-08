@@ -132,6 +132,8 @@ export const cashflowApi = {
     valid_from: string
   }) => api<Item>('/cashflow/items', { method: 'POST', json }),
   setSpread: (id: number, spread: boolean) => api<Item>(`/cashflow/items/${id}`, { method: 'PATCH', json: { spread } }),
+  startEarlier: (id: number, json: { start_from: string; reason?: string }) =>
+    api<Item>(`/cashflow/items/${id}/start`, { method: 'POST', json }),
   changeItem: (id: number, json: { effective_from: string; amount: string; frequency: Frequency }) =>
     api<Item>(`/cashflow/items/${id}/change`, { method: 'POST', json }),
   endItem: (id: number, json: { end_from: string }) => api<Item>(`/cashflow/items/${id}/end`, { method: 'POST', json }),
