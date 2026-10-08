@@ -18,6 +18,7 @@ def _now() -> datetime:
 class FinancingKind(enum.StrEnum):
     LOAN = "loan"
     BUILDING_SAVINGS = "building_savings"
+    CREDIT_LINE = "credit_line"
 
 
 class Financing(Base):
@@ -45,7 +46,7 @@ class Financing(Base):
 
 
 class FinancingEvent(Base):
-    """A dated change: special repayment, new monthly payment or new interest rate."""
+    """A dated change: special repayment, drawdown, new monthly payment or new interest rate."""
 
     __tablename__ = "financing_events"
 
@@ -54,7 +55,7 @@ class FinancingEvent(Base):
     month: Mapped[date] = mapped_column(Date)
     kind: Mapped[str] = mapped_column(
         String(24)
-    )  # special_repayment | payment_change | rate_change
+    )  # special_repayment | payment_change | rate_change | drawdown
     value: Mapped[Decimal] = mapped_column(Numeric(14, 6))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

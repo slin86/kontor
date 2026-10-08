@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { CostCompare } from '../components/CostCompare'
 import { decimalString, input, primary, secondary } from '../components/ui'
@@ -147,6 +147,11 @@ export function InstrumentsPage() {
   return (
     <div className="space-y-10">
       <h1 className="sr-only">Instrumente</h1>
+      {preselectIsin && (
+        <Link to="/depot" className="inline-block text-sm font-medium text-elbe-dunkel hover:underline">
+          ← Zurück zum Depot
+        </Link>
+      )}
 
       <section aria-labelledby="suche">
         <h2 id="suche" className="text-xl">
