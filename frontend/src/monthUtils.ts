@@ -23,3 +23,9 @@ export function monthRange(from: MonthKey, to: MonthKey): MonthKey[] {
   for (let k = from; k <= to; k = addMonths(k, 1)) out.push(k)
   return out
 }
+
+/** Full German month name, e.g. "Oktober". */
+export function monthName(key: MonthKey): string {
+  const [y, m] = key.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleString('de-DE', { month: 'long' })
+}

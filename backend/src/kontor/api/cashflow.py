@@ -34,6 +34,7 @@ from kontor.schemas.cashflow import (
     ItemEnd,
     ItemOut,
     ItemRename,
+    ItemStart,
     SankeyLinkOut,
     SankeyNodeOut,
     SankeyOut,
@@ -616,6 +617,32 @@ def end_item(item_id: int, body: ItemEnd, user: CurrentUser, db: DbSession) -> I
         after={"versions": [_version_snapshot(v) for v in item.versions]},
     )
     return _item_out(item, body.end_from, _scope(db, user, None))
+
+
+@router.post("/cashflow/items/{item_id}/start", response_model=ItemOut)
+def start_item_earlier(item_id: int, body: ItemStart, user: CurrentUser, db: DbSession) -> ItemOut:
+    """Backfill: let an item begin in an earlier month. Needs a reason when that month is closed."""
+    item = _item_or_404(db, user, item_id)
+    first = min(item.versions, key=lambda v: v.valid_from)
+    if body.start_from >= first.valid_from:
+        raise HTTPException(422, "Der neue Beginn muss vor dem bisherigen Beginn liegen")
+    if body.start_from < current_month() and not body.reason:
+        raise HTTPException(422, "Für abgeschlossene Monate ist eine Begründung nötig")
+    before = _version_snapshot(first)
+    first.valid_from = body.start_from
+    db.flush()
+    _audit(
+        db,
+        user,
+        "backfill" if body.start_from < current_month() else "update",
+        "cashflow_version",
+        first.id,
+        reason=body.reason.strip() if body.reason else None,
+        before=before,
+        after=_version_snapshot(first),
+    )
+    db.refresh(item)
+    return _item_out(item, body.start_from, _scope(db, user, None))
 
 
 @router.post("/cashflow/versions/{version_id}/correct", response_model=ItemOut)

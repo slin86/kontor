@@ -16,7 +16,7 @@ export function ExpensePie({ groups, total, height = 300 }: { groups: Group[]; t
       },
       title: {
         text: euro(total),
-        subtext: 'Ausgaben',
+        subtext: 'gesamt',
         left: 'center',
         top: '34%',
         textStyle: { color: '#12263a', fontSize: 20, fontWeight: 600 },

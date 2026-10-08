@@ -1,3 +1,4 @@
+import type { Group } from '../../cashflowApi'
 import { euro, FREQUENCY_LABEL } from '../../format'
 import { ExpensePie } from '../../components/ExpensePie'
 import { GroupBars } from '../../components/GroupBars'
@@ -15,6 +16,14 @@ export function DetailsView() {
   )
   const reserveTotal = reserves.reduce((sum, i) => sum + i.active!.monthly, 0)
   const reserveBooked = reserves.reduce((sum, i) => sum + i.booked, 0)
+  // financings are spending too: they get their own slice next to the expense groups
+  const shares: Group[] = s
+    ? [
+        ...s.expense_groups,
+        ...(s.financing > 0 ? [{ category_id: -1, name: 'Finanzierungen', kind: 'expense' as const, total: s.financing, children: [], direct: false }] : []),
+      ].sort((a, b) => b.total - a.total)
+    : []
+  const shareTotal = s ? s.expenses + s.financing : 0
   const hasLumps = items.data?.some((i) => !i.spread && i.active && i.active.frequency !== 'monthly') ?? false
 
   if (items.data?.length === 0) {
@@ -62,19 +71,19 @@ export function DetailsView() {
         </section>
       )}
 
-      {s && s.expense_groups.length > 0 && (
+      {s && shares.length > 0 && (
         <div className="grid gap-x-12 gap-y-10 lg:grid-cols-2">
           <section aria-labelledby="kuchen">
             <h2 id="kuchen" className="mb-4 text-xl">
               Ausgaben nach Kategorie
             </h2>
-            <ExpensePie groups={s.expense_groups} total={s.expenses} height={380} />
+            <ExpensePie groups={shares} total={shareTotal} height={380} />
           </section>
           <section aria-labelledby="anteile">
             <h2 id="anteile" className="mb-4 text-xl">
               Anteil an den Ausgaben
             </h2>
-            <GroupBars groups={s.expense_groups} total={s.expenses} />
+            <GroupBars groups={shares} total={shareTotal} />
           </section>
         </div>
       )}

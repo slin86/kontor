@@ -290,3 +290,20 @@ def test_item_without_spreading_is_booked_in_the_due_month_only(client: TestClie
     # switching to spreading changes every month, the outlook always averages
     client.patch(f"/api/cashflow/items/{item['id']}", json={"spread": True})
     assert client.get("/api/cashflow/summary", params={"month": "2027-04"}).json()["expenses"] == 20
+
+
+def test_item_can_start_earlier_with_reason_for_closed_months(client: TestClient) -> None:
+    _login_new_household(client)
+    item = _create_item(client, "Miete", "Wohnen", "900", valid_from="2026-10")
+    assert client.get("/api/cashflow/summary", params={"month": "2025-03"}).json()["expenses"] == 0
+
+    url = f"/api/cashflow/items/{item['id']}/start"
+    assert client.post(url, json={"start_from": "2025-01"}).status_code == 422  # reason missing
+    assert client.post(url, json={"start_from": "2026-11", "reason": "später"}).status_code == 422
+    r = client.post(url, json={"start_from": "2025-01", "reason": "Vorjahr nachgetragen"})
+    assert r.status_code == 200, r.text
+    assert (
+        client.get("/api/cashflow/summary", params={"month": "2025-03"}).json()["expenses"] == 900
+    )
+    audit = client.get("/api/audit").json()
+    assert any(a["reason"] == "Vorjahr nachgetragen" for a in audit)

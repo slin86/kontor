@@ -53,7 +53,7 @@ export function Layout() {
               end={n.end}
               className={({ isActive }) =>
                 `border-b-2 pb-0.5 text-sm font-medium ${
-                  n.to === '/' ? inCashflow : isActive ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
+                  (n.to === '/' ? inCashflow : isActive) ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
                 }`
               }
             >
