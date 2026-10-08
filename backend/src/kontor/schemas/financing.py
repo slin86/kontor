@@ -35,6 +35,7 @@ class BausparIn(BaseModel):
     start: Month
     allocation: Month  # month of Zuteilung
     fee_percent: Annotated[Decimal, Field(ge=0, le=5)] = Decimal("1")
+    fee_amount: Money | None = None  # the fee in euros; replaces ``fee_percent`` when given
     deposit_rate_percent: Annotated[Decimal, Field(ge=0, le=10)] = Decimal("0")
     loan_rate_percent: Percent = Decimal("0")
     loan_payment: Money  # monthly payment in the loan phase

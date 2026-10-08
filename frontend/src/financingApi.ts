@@ -86,7 +86,8 @@ export type BausparInput = {
   monthly_saving: string
   start: string
   allocation: string
-  fee_percent: string
+  fee_percent?: string
+  fee_amount?: string // the fee in euros instead of fee_percent
   deposit_rate_percent: string
   loan_rate_percent: string
   loan_payment: string

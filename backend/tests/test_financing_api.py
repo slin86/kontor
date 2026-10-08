@@ -356,3 +356,19 @@ def test_delete_financing_removes_it_from_all_views(client: TestClient) -> None:
     assert client.get("/api/cashflow/summary", params={"month": "2026-10"}).json()["financing"] == 0
     assert any(e["action"] == "delete" for e in client.get("/api/audit").json())
     assert client.delete(f"/api/financings/{f['id']}").status_code == 404
+
+
+def test_bauspar_fee_can_be_entered_in_euros(client: TestClient) -> None:
+    _login(client)
+    body = {**BAUSPAR, "contract_sum": "27000", "fee_amount": "432"}
+    del body["fee_percent"]
+    f = _create(client, body)
+    assert f["schedule"][0]["fee"] == 432.0
+    assert f["input"]["fee_amount"] == "432"
+
+
+def test_bauspar_fee_percent_is_still_capped(client: TestClient) -> None:
+    _login(client)
+    r = client.post("/api/financings", json={**BAUSPAR, "fee_percent": "432"})
+    assert r.status_code == 422
+    assert r.json()["detail"][0]["loc"][-1] == "fee_percent"

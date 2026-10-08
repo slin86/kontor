@@ -164,6 +164,7 @@ class BausparParams:
     start: date
     allocation: date  # month of Zuteilung; the loan phase starts here
     fee_percent: Decimal = Decimal("0.01")  # Abschlussgebühr as share of the contract sum
+    fee_amount: Decimal | None = None  # the fee in euros; takes precedence over ``fee_percent``
     deposit_rate: Decimal = ZERO  # interest on savings per year, credited every December
     loan_rate: Decimal = ZERO  # interest of the Bauspardarlehen per year
     loan_payment: Decimal = ZERO  # monthly payment in the loan phase (Tilgungsrate)
@@ -181,6 +182,7 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
     if p.monthly_saving <= 0:
         raise FinancingError("Der Sparbeitrag muss größer als null sein.")
 
+    fee = p.fee_amount if p.fee_amount is not None else cents(p.contract_sum * p.fee_percent)
     rows: list[FinancingMonth] = []
     balance = ZERO
     accrued = ZERO
@@ -195,7 +197,7 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
             FinancingMonth(
                 month=month,
                 saving=p.monthly_saving,
-                fee=cents(p.contract_sum * p.fee_percent) if month == p.start else ZERO,
+                fee=fee if month == p.start else ZERO,
                 balance=cents(balance),
                 phase="saving",
             )

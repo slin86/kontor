@@ -103,6 +103,40 @@ export function LoanFields({ initial }: { initial?: Initial }) {
   )
 }
 
+function FeeField({ initial }: { initial?: Initial }) {
+  const [unit, setUnit] = useState<'percent' | 'euro'>(initial?.fee_amount ? 'euro' : 'percent')
+  return (
+    <div className="block text-sm">
+      <label htmlFor="fee_value">Abschlussgebühr</label>
+      <div className="flex gap-2">
+        <input
+          id="fee_value"
+          name="fee_value"
+          key={unit}
+          required
+          inputMode="decimal"
+          pattern="[0-9]+([.,][0-9]+)?"
+          defaultValue={show(unit === 'euro' ? initial?.fee_amount : (initial?.fee_percent ?? '1'))}
+          className={input}
+        />
+        <select
+          name="fee_unit"
+          aria-label="Einheit der Abschlussgebühr"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value as 'percent' | 'euro')}
+          className={`${input} !w-auto`}
+        >
+          <option value="percent">% der Summe</option>
+          <option value="euro">Euro</option>
+        </select>
+      </div>
+      <span className="mt-1 block text-xs text-tinte-weich">
+        {unit === 'percent' ? 'Üblich sind 1 bis 2 Prozent, höchstens 5.' : 'Der Betrag, der im ersten Monat anfällt.'}
+      </span>
+    </div>
+  )
+}
+
 export function BausparFields({ initial }: { initial?: Initial }) {
   return (
     <>
@@ -111,7 +145,7 @@ export function BausparFields({ initial }: { initial?: Initial }) {
       <Field label="Sparbeitrag pro Monat in Euro" name="monthly_saving" type="decimal" initial={initial?.monthly_saving} />
       <Field label="Vertragsbeginn" name="start" type="month" initial={initial?.start} />
       <Field label="Zuteilung im Monat" name="allocation" type="month" initial={initial?.allocation} />
-      <Field label="Abschlussgebühr in Prozent der Summe" name="fee_percent" type="decimal" initial={initial?.fee_percent ?? '1'} />
+      <FeeField initial={initial} />
       <Field label="Guthabenzins in Prozent pro Jahr" name="deposit_rate_percent" type="decimal" initial={initial?.deposit_rate_percent ?? '0'} />
       <Field label="Darlehenszins in Prozent pro Jahr" name="loan_rate_percent" type="decimal" initial={initial?.loan_rate_percent} />
       <Field label="Rate in der Darlehensphase in Euro" name="loan_payment" type="decimal" initial={initial?.loan_payment} />
@@ -142,7 +176,7 @@ function readInput(kind: FinancingKind, f: FormData): FinancingInput {
     monthly_saving: d('monthly_saving'),
     start: s('start'),
     allocation: s('allocation'),
-    fee_percent: d('fee_percent'),
+    ...(f.get('fee_unit') === 'euro' ? { fee_amount: d('fee_value') } : { fee_percent: d('fee_value') }),
     deposit_rate_percent: d('deposit_rate_percent'),
     loan_rate_percent: d('loan_rate_percent'),
     loan_payment: d('loan_payment'),
