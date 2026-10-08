@@ -6,20 +6,20 @@ namespace: kontor
 resources:
 - ../../base
 - ingress.yaml
-patches:
   # The home.lan ingress is served over plain HTTP, so the session cookie must not be "Secure".
   # Set this back to "true" once the ingress terminates TLS.
-  - target:
-      kind: ConfigMap
-      name: kontor-config
-    patch: |-
-      - op: replace
-        path: /data/KONTOR_COOKIE_SECURE
-        value: "false"
+patches:
+- patch: |-
+    - op: replace
+      path: /data/KONTOR_COOKIE_SECURE
+      value: "false"
+  target:
+    kind: ConfigMap
+    name: kontor-config
 images:
 - name: ghcr.io/slin86/kontor-api
   newName: ghcr.io/slin86/kontor-api
-  newTag: sha-2d960ab
+  newTag: sha-7258867
 - name: ghcr.io/slin86/kontor-web
   newName: ghcr.io/slin86/kontor-web
-  newTag: sha-2d960ab
+  newTag: sha-7258867
