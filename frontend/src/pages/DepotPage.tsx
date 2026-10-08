@@ -19,7 +19,6 @@ import { depotApi, KIND_LABEL, type Instrument, type InstrumentDetail, type Rate
 import { TaxSettingsForm } from '../components/TaxSettingsForm'
 import { euro } from '../format'
 import { useMonth } from '../month'
-import { PersonSwitcher } from '../components/PersonSwitcher'
 import { usePerson } from '../person'
 import { monthLabel } from '../monthUtils'
 
@@ -312,7 +311,6 @@ export function DepotPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Depot</h1>
-      <PersonSwitcher />
 
       {d && d.instruments.length > 0 && (
         <div className="flex flex-wrap gap-x-10 gap-y-4">

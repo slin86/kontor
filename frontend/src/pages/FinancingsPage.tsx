@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PersonSwitcher } from '../components/PersonSwitcher'
 import { usePerson } from '../person'
 import { useState } from 'react'
 
@@ -254,7 +253,6 @@ export function FinancingsPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Finanzierungen</h1>
-      <PersonSwitcher />
       <Outlook />
 
       <section aria-labelledby="vertraege">
