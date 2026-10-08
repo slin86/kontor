@@ -57,7 +57,7 @@ export function Pegel() {
                   !locked && !isSelected
                     ? {
                         backgroundImage:
-                          'repeating-linear-gradient(135deg, transparent 0 5px, rgb(18 38 58 / 0.07) 5px 6px)',
+                          'repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--color-tinte) 9%, transparent) 5px 6px)',
                       }
                     : undefined
                 }

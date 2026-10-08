@@ -202,7 +202,7 @@ function MembersSection() {
           Wer sich mit diesem Code registriert, tritt deinem Haushalt bei und bekommt automatisch ein eigenes Depot. Erneuern macht den alten Code ungültig.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-4">
-          <code className="select-all border border-tinte/30 bg-white/60 px-3 py-2 text-base tracking-wider">{h.invite_code}</code>
+          <code className="select-all border border-tinte/30 bg-feld/60 px-3 py-2 text-base tracking-wider">{h.invite_code}</code>
           <button type="button" onClick={() => void copy(h.invite_code)} className={secondary}>
             {copied ? 'Kopiert' : 'Code kopieren'}
           </button>

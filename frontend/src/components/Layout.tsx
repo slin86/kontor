@@ -4,6 +4,7 @@ import { useAuth } from '../auth'
 import { useMonth } from '../month'
 import { PersonProvider } from '../person'
 import { monthLabel } from '../monthUtils'
+import { useTheme } from '../theme'
 import { Pegel } from './Pegel'
 
 const NAV = [
@@ -15,9 +16,12 @@ const NAV = [
   { to: '/haushalt', label: 'Haushalt' },
 ]
 
+const THEME_LABEL = { auto: 'Automatisch', light: 'Hell', dark: 'Dunkel' } as const
+
 export function Layout() {
   const { me, logout } = useAuth()
   const { selected, current, isLocked } = useMonth()
+  const theme = useTheme()
   // the category management is part of the cashflow area
   const inCashflow = useLocation().pathname === '/kategorien'
 
@@ -42,6 +46,14 @@ export function Layout() {
           ))}
         </nav>
         <div className="ml-auto flex items-baseline gap-4 text-sm">
+          <button
+            type="button"
+            onClick={theme.cycle}
+            aria-label={`Darstellung: ${THEME_LABEL[theme.mode]}. Zum Wechseln klicken.`}
+            className="text-tinte-weich hover:text-tinte"
+          >
+            {THEME_LABEL[theme.mode]}
+          </button>
           <span className="text-tinte-weich">{me?.user.display_name}</span>
           <button type="button" onClick={() => void logout()} className="font-medium text-elbe-dunkel hover:underline">
             Abmelden

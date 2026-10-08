@@ -163,6 +163,7 @@ special funds is not covered. Settings (church tax, allowance, Basiszins) are pe
 ## Frontend
 
 React, Vite, TypeScript, Tailwind and Apache ECharts. Fonts are bundled locally (no external requests).
+The theme follows the system by default; the header button cycles automatic, light and dark and remembers the choice. Colors are CSS variables in `index.css`, charts are recolored in `charts/EChart.tsx`.
 
 ```bash
 cd frontend

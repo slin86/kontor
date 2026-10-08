@@ -7,11 +7,13 @@ import App from './App'
 import { AuthProvider } from './auth'
 import './index.css'
 import { MonthProvider } from './month'
+import { ThemeProvider } from './theme'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
@@ -21,5 +23,6 @@ createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 )
