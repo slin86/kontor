@@ -221,15 +221,15 @@ export function CategoriesPage() {
   return (
     <div className="space-y-12">
       <div>
+        <Link to="/" className="mb-4 inline-block text-sm font-medium text-elbe-dunkel hover:underline">
+          ← Zurück zum Cashflow
+        </Link>
         <h1 className="text-2xl">Kategorien</h1>
         <p className="mt-2 max-w-xl text-sm text-tinte-weich">
           Posten gehören zu einer Kategorie, das Sankey-Diagramm gruppiert danach. Es gibt zwei Ebenen: Gruppen und
           Unterkategorien. Umbenennen und Umsortieren ändert keine Beträge. Wer eine Kategorie löscht, bestimmt, wohin ihre Posten
           wandern.
         </p>
-        <Link to="/" className="mt-2 inline-block text-sm font-medium text-elbe-dunkel hover:underline">
-          Zurück zum Cashflow
-        </Link>
       </div>
 
       {(['expense', 'income'] as Kind[]).map((kind) => {

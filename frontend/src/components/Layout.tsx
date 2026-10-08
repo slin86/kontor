@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../auth'
 import { useMonth } from '../month'
@@ -20,6 +20,8 @@ export function Layout() {
   const { me, logout } = useAuth()
   const { selected, current, isLocked } = useMonth()
   const theme = useTheme()
+  // the category management is part of the cashflow area
+  const inCashflow = useLocation().pathname === '/kategorien'
 
   return (
     <div className="min-h-screen">
@@ -33,7 +35,7 @@ export function Layout() {
               end={n.end}
               className={({ isActive }) =>
                 `border-b-2 pb-0.5 text-sm font-medium ${
-                  isActive ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
+                  isActive || (n.to === '/' && inCashflow) ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
                 }`
               }
             >

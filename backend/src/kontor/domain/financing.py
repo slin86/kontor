@@ -39,6 +39,7 @@ class FinancingMonth:
     )
     phase: str = "loan"  # "loan" | "saving"
     special: Decimal = ZERO  # part of ``principal`` that was a special repayment
+    drawn: Decimal = ZERO  # money taken out of a credit line in this month (not an outflow)
 
     @property
     def outflow(self) -> Decimal:
@@ -81,8 +82,8 @@ class LoanEvent:
     """A dated change: extra repayment, new monthly payment or new interest rate."""
 
     month: date
-    kind: str  # "special_repayment" | "payment_change" | "rate_change"
-    value: Decimal  # euros for repayments/payments, annual rate (e.g. 0.035) for rate changes
+    kind: str  # "special_repayment" | "payment_change" | "rate_change" | "drawdown"
+    value: Decimal  # euros for repayments/payments/drawdowns, annual rate (e.g. 0.035) for rates
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,88 @@ def loan_schedule(params: LoanParams, events: list[LoanEvent] | None = None) -> 
 
 
 # --------------------------------------------------------------------------------------
+# Credit line (Rahmenkredit)
+# --------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CreditLineParams:
+    limit: Decimal  # the most that may be drawn at any time
+    balance: Decimal  # amount drawn at the start
+    annual_rate: Decimal
+    monthly_payment: Decimal
+    start: date  # month of the first payment
+
+
+def credit_line_schedule(
+    params: CreditLineParams, events: list[LoanEvent] | None = None
+) -> Schedule:
+    """Monthly schedule of a revolving credit line.
+
+    It runs like an annuity loan, but money can be taken out again (``drawdown``) up to the limit,
+    paid back early (``special_repayment``) and the payment or rate can change. Interest is charged
+    on the balance after the month's drawdown. The schedule ends when the balance reaches zero.
+    """
+    p = params
+    if p.balance <= 0:
+        raise FinancingError("Der aktuell genutzte Betrag muss größer als null sein.")
+    if p.limit < p.balance:
+        raise FinancingError("Der genutzte Betrag liegt über dem Rahmen.")
+
+    by_month: dict[date, list[LoanEvent]] = {}
+    for e in events or []:
+        by_month.setdefault(e.month, []).append(e)
+
+    balance = p.balance
+    rate = p.annual_rate
+    payment = p.monthly_payment
+    month = p.start
+    rows: list[FinancingMonth] = []
+    for _ in range(MAX_MONTHS):
+        specials = ZERO
+        drawn = ZERO
+        for e in by_month.get(month, []):
+            if e.kind == "rate_change":
+                rate = e.value
+            elif e.kind == "payment_change":
+                payment = e.value
+            elif e.kind == "special_repayment":
+                specials += e.value
+            elif e.kind == "drawdown":
+                drawn += e.value
+
+        balance += drawn
+        if balance > p.limit:
+            raise FinancingError(
+                f"Im Monat {month:%m/%Y} wäre der Rahmen von {p.limit} € überschritten "
+                f"({balance} € genutzt)."
+            )
+        interest = cents(balance * rate / 12)
+        if payment <= interest:
+            raise FinancingError(
+                f"Die Rate von {payment} € deckt im Monat {month:%m/%Y} "
+                f"die Zinsen von {interest} € nicht."
+            )
+        principal = min(payment - interest, balance)
+        special = min(specials, balance - principal)
+        balance = balance - principal - special
+        rows.append(
+            FinancingMonth(
+                month=month,
+                interest=interest,
+                principal=principal + special,
+                balance=balance,
+                special=special,
+                drawn=drawn,
+            )
+        )
+        if balance <= 0:
+            return Schedule(rows, p.monthly_payment)
+        month = add_months(month, 1)
+    raise FinancingError("Der Rahmenkredit wird innerhalb von 100 Jahren nicht getilgt.")
+
+
+# --------------------------------------------------------------------------------------
 # Building-society savings contract (Bausparvertrag)
 # --------------------------------------------------------------------------------------
 
@@ -164,6 +247,10 @@ class BausparParams:
     start: date
     allocation: date  # month of Zuteilung; the loan phase starts here
     fee_percent: Decimal = Decimal("0.01")  # Abschlussgebühr as share of the contract sum
+    fee_amount: Decimal | None = None  # the fee in euros; takes precedence over ``fee_percent``
+    # Bausparfinanzierung: the whole contract sum is paid out on day 1 as an interest-only
+    # advance loan (Vorausdarlehen) at this rate until the contract is allocated.
+    prefinance_rate: Decimal | None = None
     deposit_rate: Decimal = ZERO  # interest on savings per year, credited every December
     loan_rate: Decimal = ZERO  # interest of the Bauspardarlehen per year
     loan_payment: Decimal = ZERO  # monthly payment in the loan phase (Tilgungsrate)
@@ -172,6 +259,8 @@ class BausparParams:
 def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = None) -> Schedule:
     """Saving phase (monthly savings plus year-end interest), then the Bauspardarlehen.
 
+    With ``prefinance_rate`` the saving phase also pays interest on the full contract sum. At
+    allocation, savings and Bauspardarlehen together pay off that advance loan.
     The contract fee is due in the first month. At allocation the saved balance counts towards the
     contract sum; the remainder is paid out as a loan that runs like an annuity loan.
     """
@@ -181,6 +270,10 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
     if p.monthly_saving <= 0:
         raise FinancingError("Der Sparbeitrag muss größer als null sein.")
 
+    fee = p.fee_amount if p.fee_amount is not None else cents(p.contract_sum * p.fee_percent)
+    advance_interest = (
+        cents(p.contract_sum * p.prefinance_rate / 12) if p.prefinance_rate is not None else ZERO
+    )
     rows: list[FinancingMonth] = []
     balance = ZERO
     accrued = ZERO
@@ -194,8 +287,9 @@ def bauspar_schedule(params: BausparParams, events: list[LoanEvent] | None = Non
         rows.append(
             FinancingMonth(
                 month=month,
+                interest=advance_interest,
                 saving=p.monthly_saving,
-                fee=cents(p.contract_sum * p.fee_percent) if month == p.start else ZERO,
+                fee=fee if month == p.start else ZERO,
                 balance=cents(balance),
                 phase="saving",
             )

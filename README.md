@@ -59,7 +59,15 @@ Not covered yet: correcting the *dates* of a version, deleting items.
   monthly on the remaining balance (annuity loan).
 - **Bausparvertrag**: saving phase (monthly contribution, interest credited each December, one-off
   Abschlussgebuehr), allocation month, then a loan phase with its own rate and payment.
-- **Events** from the current month on: special repayment, payment change, rate change. Past events are
+- **Bausparfinanzierung** (Bausparvertrag with advance loan): the whole contract sum is paid out on day 1 as an
+  interest-only advance loan (Vorausdarlehen). Until allocation you pay its interest plus the monthly saving;
+  at allocation savings and Bauspardarlehen settle the advance loan and only the Bauspar loan keeps running.
+  It is a Bauspar contract with `prefinance_rate_percent` set. The fee can be given in percent or euros.
+- **Credit line** (Rahmenkredit): limit, amount drawn today, annual rate and a fixed monthly payment. Runs
+  like an annuity loan, but money can be taken out again up to the limit. Deposits are special repayments,
+  withdrawals are `drawdown` events (money received, so no cashflow outflow). Exceeding the limit is rejected.
+- **Events** from the current month on: special repayment (a deposit on a credit line), drawdown (credit line
+  only), payment change, rate change. Past events are
   locked (409); contract data can be corrected with a reason and is audited.
 - The cashflow summary, Sankey (financings -> contract -> interest / principal / saving / fees) and series
   include the financings automatically.
@@ -198,7 +206,7 @@ Cashflow endpoints (all need a session, mutating calls need the CSRF header):
 | `GET /api/cashflow/summary` / `sankey` | Aggregates for one month |
 | `GET /api/cashflow/series?from=&to=` | Income, expenses and balance per month |
 | `GET /api/audit` | Audit log |
-| `GET/POST /api/financings` | List / create loans and Bauspar contracts |
+| `GET/POST /api/financings` | List / create loans, credit lines and Bauspar contracts |
 | `GET /api/financings/{id}` | Contract data, schedule and events |
 | `POST /api/financings/{id}/correct` | Correct contract data (reason required) |
 | `POST /api/financings/{id}/events`, `DELETE .../events/{event_id}` | Add / remove a dated event |
