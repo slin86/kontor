@@ -6,6 +6,7 @@ namespace: kontor
 resources:
 - ../../base
 - ingress.yaml
+- ingressroute.yaml
   # The home.lan ingress is served over plain HTTP, so the session cookie must not be "Secure".
   # Set this back to "true" once the ingress terminates TLS.
 patches:

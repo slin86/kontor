@@ -319,7 +319,7 @@ kubectl -n <postgres namespace> exec -it <postgres pod> -- \
 
 1. Enter the secret in Infisical and create the database.
 2. Edit the host in `deploy/k8s/overlays/homelab/ingress.yaml` (default `kontor.home.lan`, Traefik,
-   internal only; add a public IngressRoute yourself if you ever want one).
+   internal), and the host in `ingressroute.yaml` (public Traefik IngressRoute, default `kontor.slin.io`).
 3. `kubectl apply -f deploy/argocd/application.yaml`.
 
 **How it runs**: the images are `ghcr.io/slin86/kontor-api` and `kontor-web`. Every push to `main` that
