@@ -30,7 +30,6 @@ export interface Rate {
   amount: number
   valid_from: string
   valid_to: string | null
-  locked: boolean
 }
 
 export interface OneOff {
@@ -38,7 +37,6 @@ export interface OneOff {
   month: string
   amount: number
   note: string | null
-  locked: boolean
 }
 
 export interface InstrumentDetail extends Instrument {

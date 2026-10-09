@@ -43,28 +43,19 @@ function addOne(key: string, delta: number): string {
   return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`
 }
 
+/** Time spans to choose from, in steps of five years. */
+const YEAR_CHOICES = Array.from({ length: 10 }, (_, n) => (n + 1) * 5)
+
 function Projection() {
   const { current } = useMonth()
   const { selectedId, selected } = usePerson()
   const [years, setYears] = useState(30)
-  const [spread, setSpread] = useState(2)
   const [inflation, setInflation] = useState(0)
 
   const base = useQuery({
     queryKey: ['depot', 'projection', selectedId, years, 0, inflation],
     queryFn: () => depotApi.projection(years, 0, inflation, selectedId),
   })
-  const low = useQuery({
-    queryKey: ['depot', 'projection', selectedId, years, -spread, inflation],
-    queryFn: () => depotApi.projection(years, -spread, inflation, selectedId),
-    enabled: spread > 0,
-  })
-  const high = useQuery({
-    queryKey: ['depot', 'projection', selectedId, years, spread, inflation],
-    queryFn: () => depotApi.projection(years, spread, inflation, selectedId),
-    enabled: spread > 0,
-  })
-
   const commit = (set: (n: number) => void, max: number) => (e: { currentTarget: HTMLInputElement }) => {
     const n = Number(e.currentTarget.value.replace(',', '.'))
     if (Number.isFinite(n) && n >= 0 && n <= max) set(n)
@@ -73,8 +64,6 @@ function Projection() {
   const data = base.data
   const hasPositions = (data?.instruments.length ?? 0) > 0
   const end = data?.points.at(-1)
-  const lowEnd = spread > 0 ? low.data?.points.at(-1) : undefined
-  const highEnd = spread > 0 ? high.data?.points.at(-1) : undefined
 
   return (
     <section aria-labelledby="prognose">
@@ -85,22 +74,12 @@ function Projection() {
         <label>
           Zeitraum
           <select value={years} onChange={(e) => setYears(Number(e.target.value))} className={`${input} !mt-1 w-auto`}>
-            {[10, 20, 30, 40, 50].map((y) => (
+            {YEAR_CHOICES.map((y) => (
               <option key={y} value={y}>
                 {y} Jahre
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          Szenario-Abstand (Prozentpunkte Rendite)
-          <input
-            defaultValue={String(spread).replace('.', ',')}
-            onBlur={commit(setSpread, 10)}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            inputMode="decimal"
-            className={`${input} !mt-1 !w-24`}
-          />
         </label>
         <label>
           Inflation pro Jahr (%)
@@ -117,14 +96,11 @@ function Projection() {
       {data && hasPositions && (
         <>
           <div className="mt-6">
-            <DepotChart base={data} low={spread > 0 ? low.data : undefined} high={spread > 0 ? high.data : undefined} today={current} />
+            <DepotChart base={data} today={current} />
           </div>
           {end && (
             <div className="mt-4 flex flex-wrap gap-x-10 gap-y-4">
               <Figure label={`Wert ${monthLabel(end.month)}${inflation > 0 ? ' (heutige Kaufkraft)' : ''}`} value={euro(end.value)} />
-              {lowEnd && highEnd && (
-                <Figure label="Spanne der Szenarien" value={`${euro(lowEnd.value)} bis ${euro(highEnd.value)}`} />
-              )}
               <Figure label="Davon eingezahlt" value={euro(end.paid_in)} />
               <Figure label="Rechnerischer Ertrag" value={euro(end.value - end.paid_in)} tone={end.value >= end.paid_in ? 'plus' : 'minus'} />
               <Figure label={`Nach Steuern bei Verkauf ${monthLabel(end.month)}`} value={euro(end.net_value)} />
@@ -132,8 +108,8 @@ function Projection() {
             </div>
           )}
           <p className="mt-4 max-w-2xl text-sm text-tinte-weich">
-            Grundlage sind die erwarteten Renditen und Kosten deiner Positionen. Das sind Annahmen, keine Zusagen. Die Linien
-            für pessimistisch und optimistisch verschieben die Rendite jeder Position um den gewählten Abstand. Die Linie „Nach
+            Grundlage sind die erwarteten Renditen und Kosten deiner Positionen. Das sind Annahmen, keine Zusagen. Mit
+            Inflation rechnet Kontor Werte und Einzahlungen in die heutige Kaufkraft um. Die Linie „Nach
             Steuern“ zeigt, was nach Abgeltungsteuer ({String(data.tax_rate_percent).replace('.', ',')} % auf steuerpflichtige
             Erträge) übrig bliebe, wenn du in dem jeweiligen Monat alles verkaufst. Das ist eine Schätzung, keine Steuerberatung.
           </p>
@@ -251,17 +227,9 @@ function Detail({ instrument }: { instrument: Instrument }) {
               <span>{o.amount < 0 ? 'Entnahme' : 'Einzahlung'}</span>
               {o.note && <span className="text-tinte-weich">{o.note}</span>}
               <span className={`zahl ml-auto font-medium ${o.amount < 0 ? 'text-bake' : ''}`}>{euro(o.amount, true)}</span>
-              {o.locked ? (
-                <span className="text-xs text-tinte-weich">abgeschlossen</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => remove.mutate(o.id)}
-                  className="font-medium text-elbe-dunkel hover:underline"
-                >
-                  Entfernen
-                </button>
-              )}
+              <button type="button" onClick={() => remove.mutate(o.id)} className="font-medium text-elbe-dunkel hover:underline">
+                Entfernen
+              </button>
             </li>
           ))}
         </ul>

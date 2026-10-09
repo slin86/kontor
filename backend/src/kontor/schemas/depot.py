@@ -56,7 +56,6 @@ class RateOut(BaseModel):
     amount: float
     valid_from: Month
     valid_to: Month | None
-    locked: bool
 
 
 class OneOffOut(BaseModel):
@@ -64,7 +63,6 @@ class OneOffOut(BaseModel):
     month: Month
     amount: float
     note: str | None
-    locked: bool
 
 
 class OwnerChange(BaseModel):
