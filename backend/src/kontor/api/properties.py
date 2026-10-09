@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from kontor.api.depot import PersonParam, _scope
 from kontor.api.deps import CurrentUser, DbSession
+from kontor.api.financings import _summary as summary
 from kontor.api.wealth import financing_position
 from kontor.core.clock import current_month
 from kontor.domain import cashflow as cf
@@ -68,20 +69,28 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
     today = current_month()
     factor = amount_factor(p)
     financings: list[LinkedFinancing] = []
-    debt = payment = initial_total = Decimal(0)
+    debt = payment = repaid_part = repaying_total = Decimal(0)
     for f in db.scalars(
         select(Financing)
         .where(Financing.property_id == p.id)
         .options(selectinload(Financing.events))
     ):
         schedule = schedule_for(f)
+        info = summary(f, schedule)
         remaining = financing_position(f, schedule, today)[1]
         row = schedule.at(today)
         pay = row.outflow if row else Decimal(0)
         initial = _initial_debt(schedule)
+        loan_rows = [r for r in schedule.rows if r.phase == "loan"]
+        # a Bauspar contract that is still saving has not started to repay anything
+        repaying = info.phase in ("loan", "finished") and initial is not None
         debt += remaining
         payment += pay
-        initial_total += max(initial or Decimal(0), remaining)
+        if repaying and initial:
+            repaid_part += max(Decimal(0), initial - remaining)
+            repaying_total += max(initial, remaining)
+        else:
+            repaying_total += remaining  # still saving: advance loan counts as debt, not repaid
         financings.append(
             LinkedFinancing(
                 id=f.id,
@@ -91,14 +100,19 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
                 initial_debt=float(initial) if initial is not None else None,
                 repaid_percent=(
                     float(cf.cents(max(Decimal(0), 1 - remaining / initial) * HUNDRED))
-                    if initial
+                    if repaying and initial
                     else None
                 ),
                 end_month=schedule.end_month,
+                kind=f.kind.value,
+                phase=info.phase,
+                prefinanced=info.prefinanced,
+                saved=info.saved,
+                loan_start=loan_rows[0].month if loan_rows else None,
             )
         )
     debt, payment = debt * factor, payment * factor
-    repaid = max(Decimal(0), initial_total * factor - debt)
+    repaid = repaid_part * factor
 
     items: list[LinkedItem] = []
     income = costs = Decimal(0)
@@ -158,7 +172,7 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
         debt=float(cf.cents(debt)),
         repaid=float(cf.cents(repaid)),
         repaid_percent=(
-            float(cf.cents(repaid / (repaid + debt) * HUNDRED)) if repaid + debt > 0 else None
+            float(cf.cents(repaid_part / repaying_total * HUNDRED)) if repaying_total > 0 else None
         ),
         equity=float(cf.cents(my_value - debt)),
         invested=float(cf.cents(invested * my_works)),

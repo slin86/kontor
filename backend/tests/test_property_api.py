@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.test_financing_api import LOAN, _create, _login
+from tests.test_financing_api import BAUSPAR, LOAN, _create, _login
 from tests.test_wealth_api import fixed_today  # noqa: F401
 
 TODAY = date(2026, 10, 1)
@@ -109,3 +109,19 @@ def test_share_scales_debt_costs_and_wealth(client: TestClient) -> None:
     assert now["values"][idx] == pytest.approx(half["debt"], abs=0.01)
     own = client.put(f"/api/properties/{p['id']}", json={**HOUSE, "own_share_entered": True}).json()
     assert own["debt"] == pytest.approx(fin["remaining_debt"], abs=0.01)
+
+
+def test_saving_phase_contract_is_not_counted_as_repaid(client: TestClient) -> None:
+    _login(client)
+    p = _house(client, share_percent="100")
+    loan = _create(client, {**LOAN, "start": "2026-01"})
+    bs = _create(client, {**BAUSPAR, "start": "2026-01", "allocation": "2036-01"})
+    client.put(f"/api/properties/{p['id']}/links", json={"financing_ids": [loan["id"], bs["id"]]})
+    out = client.get(f"/api/properties/{p['id']}").json()
+    contract = next(f for f in out["financings"] if f["id"] == bs["id"])
+    assert contract["phase"] == "saving"
+    assert contract["repaid_percent"] is None
+    assert contract["loan_start"] == "2036-01"
+    assert contract["saved"] is not None
+    plain = next(f for f in out["financings"] if f["id"] == loan["id"])
+    assert out["repaid_percent"] == pytest.approx(plain["repaid_percent"], abs=0.1)
