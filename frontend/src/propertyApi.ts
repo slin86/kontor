@@ -21,6 +21,9 @@ export interface LinkedFinancing {
   name: string
   remaining_debt: number
   payment_this_month: number
+  initial_debt: number | null
+  repaid_percent: number | null
+  end_month: string
 }
 
 export interface LinkedItem {
@@ -42,10 +45,13 @@ export interface Property {
   value_as_of: string
   growth_percent: number
   share_percent: number
+  own_share_entered: boolean
   works: Work[]
   current_value: number
   my_value: number
   debt: number
+  repaid: number
+  repaid_percent: number | null
   equity: number
   invested: number
   value_gain: number
@@ -69,6 +75,7 @@ export interface PropertyInput {
   value_as_of: string
   growth_percent: string
   share_percent: string
+  own_share_entered: boolean
 }
 
 export interface WorkInput {

@@ -43,6 +43,7 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
   const refresh = useRefresh()
   const [usage, setUsage] = useState<Usage>(property?.usage ?? 'owner_occupied')
   const [owner, setOwner] = useState<number | undefined>(property?.person_id ?? selectedId ?? me?.id)
+  const [ownEntered, setOwnEntered] = useState(property?.own_share_entered ?? false)
   const mutation = useMutation({
     mutationFn: (v: Parameters<typeof propertyApi.create>[0]) => (property ? propertyApi.update(property.id, v) : propertyApi.create(v)),
     onSuccess: async () => {
@@ -65,6 +66,7 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
       value_as_of: String(f.get('value_as_of')),
       growth_percent: decimalString(f.get('growth_percent')) || '0',
       share_percent: decimalString(f.get('share_percent')) || '100',
+      own_share_entered: ownEntered,
     })
   }
 
@@ -125,7 +127,18 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
       <label className="block text-sm">
         Dein Anteil in Prozent
         <input name="share_percent" required inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" defaultValue={property ? num(property.share_percent) : '100'} className={input} />
-        <span className="mt-1 block text-xs text-tinte-weich">Bei Miteigentum nur dein Teil. Schulden und Cashflow zählen voll, wenn du sie verknüpfst.</span>
+        <span className="mt-1 block text-xs text-tinte-weich">
+          Bei Miteigentum nur dein Teil, zum Beispiel 50 % mit deinem Bruder. Wert, Schulden, Kosten und Miete zählen dann anteilig.
+        </span>
+      </label>
+      <label className="flex items-start gap-2 text-sm sm:col-span-2">
+        <input type="checkbox" checked={ownEntered} onChange={(e) => setOwnEntered(e.target.checked)} className="mt-1" />
+        <span>
+          Verknüpfte Finanzierungen und Posten enthalten schon nur meinen Anteil
+          <span className="block text-xs text-tinte-weich">
+            Lass das aus, wenn du den ganzen Kredit und alle Kosten des Hauses erfasst hast. Dann rechnet Kontor deinen Anteil heraus.
+          </span>
+        </span>
       </label>
       <div className="flex items-end gap-2">
         <button type="submit" disabled={mutation.isPending} className={primary}>
@@ -272,7 +285,11 @@ function LinkSection({ property }: { property: Property }) {
           {property.financings.map((f) => (
             <li key={`f${f.id}`} className="flex flex-wrap gap-x-4 py-2">
               <span className="font-medium">{f.name}</span>
-              <span className="text-tinte-weich">Finanzierung · Restschuld {euro(f.remaining_debt)}</span>
+              <span className="text-tinte-weich">
+                Finanzierung · Restschuld {euro(f.remaining_debt)}
+                {f.repaid_percent !== null && ` · ${num(Math.round(f.repaid_percent))} % getilgt`}
+                {f.remaining_debt > 0 && ` · bis ${monthLabel(f.end_month)}`}
+              </span>
               <span className="zahl ml-auto text-bake">{euro(f.payment_this_month)} / Monat</span>
             </li>
           ))}
@@ -284,6 +301,9 @@ function LinkSection({ property }: { property: Property }) {
             </li>
           ))}
         </ul>
+      )}
+      {!editing && property.share_percent < 100 && !property.own_share_entered && (property.financings.length > 0 || property.items.length > 0) && (
+        <p className="mt-2 text-xs text-tinte-weich">Die Beträge in der Liste gelten für das ganze Haus. In den Kennzahlen oben zählen {num(property.share_percent)} % davon.</p>
       )}
       {editing && (
         <div className="mt-3 grid gap-6 sm:grid-cols-2">
@@ -348,10 +368,21 @@ function PropertyCard({ property: p, owner }: { property: Property; owner?: stri
         <Figure label="Marktwert heute" value={euro(p.current_value)} />
         {p.share_percent < 100 && <Figure label="Dein Anteil" value={euro(p.my_value)} />}
         <Figure label="Restschuld" value={p.debt > 0 ? euro(p.debt) : '–'} tone={p.debt > 0 ? 'minus' : undefined} />
+        {p.repaid_percent !== null && <Figure label={`Abbezahlt (${num(Math.round(p.repaid_percent))} %)`} value={euro(p.repaid)} tone="plus" />}
         <Figure label="Eigenkapital" value={euro(p.equity)} tone={p.equity < 0 ? 'minus' : 'plus'} />
         <Figure label="Investiert (Kauf, Nebenkosten, Maßnahmen)" value={euro(p.invested)} />
         <Figure label="Wertgewinn gesamt" value={euro(p.value_gain)} tone={p.value_gain < 0 ? 'minus' : 'plus'} />
       </div>
+      {p.repaid_percent !== null && (
+        <div>
+          <div className="h-3 w-full max-w-xl bg-tinte/10" role="img" aria-label={`${num(Math.round(p.repaid_percent))} Prozent der Schulden abbezahlt`}>
+            <div className="h-full bg-elbe" style={{ width: `${Math.min(100, p.repaid_percent)}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-tinte-weich">
+            {num(Math.round(p.repaid_percent))} % der Finanzierung{p.share_percent < 100 && !p.own_share_entered ? ' (dein Anteil)' : ''} sind abbezahlt.
+          </p>
+        </div>
+      )}
       {(p.items.length > 0 || p.financings.length > 0) && (
         <div className="flex flex-wrap gap-x-10 gap-y-4">
           {p.usage === 'rented' && <Figure label="Einnahmen pro Monat" value={euro(p.income)} />}

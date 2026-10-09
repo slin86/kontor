@@ -23,6 +23,7 @@ class PropertyIn(BaseModel):
     value_as_of: Month
     growth_percent: Growth = Decimal(0)
     share_percent: Share = Decimal(100)
+    own_share_entered: bool = False
 
 
 class WorkIn(BaseModel):
@@ -45,6 +46,9 @@ class LinkedFinancing(BaseModel):
     name: str
     remaining_debt: float
     payment_this_month: float
+    initial_debt: float | None  # highest debt of the loan phase
+    repaid_percent: float | None
+    end_month: Month  # first month without any payment
 
 
 class LinkedItem(BaseModel):
@@ -66,11 +70,14 @@ class PropertyOut(BaseModel):
     value_as_of: Month
     growth_percent: float
     share_percent: float
+    own_share_entered: bool
     works: list[WorkOut]
     # computed for the current month
     current_value: float  # whole property, including modernisations
     my_value: float  # the household's share
-    debt: float
+    debt: float  # the household's share of the linked financings
+    repaid: float  # household's share already paid off
+    repaid_percent: float | None  # of all linked debt
     equity: float
     invested: float  # price, closing costs and modernisations
     value_gain: float  # current value minus what was put in, whole property

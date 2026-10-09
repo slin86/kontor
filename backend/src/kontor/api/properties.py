@@ -12,6 +12,7 @@ from kontor.api.deps import CurrentUser, DbSession
 from kontor.api.wealth import financing_position
 from kontor.core.clock import current_month
 from kontor.domain import cashflow as cf
+from kontor.domain.financing import Schedule
 from kontor.models import (
     CashflowItem,
     CategoryKind,
@@ -32,7 +33,7 @@ from kontor.schemas.property import (
 from kontor.services.audit import record as audit
 from kontor.services.financing_book import schedule_for
 from kontor.services.people import get_person, own_person
-from kontor.services.properties import property_value
+from kontor.services.properties import amount_factor, property_value
 
 router = APIRouter(prefix="/api", tags=["properties"])
 HUNDRED = Decimal(100)
@@ -54,11 +55,20 @@ def _item_monthly(item: CashflowItem, month: date) -> Decimal:
     return cf.monthly_amount(spec.amount, spec.frequency) if spec else Decimal(0)
 
 
+def _initial_debt(schedule: Schedule) -> Decimal | None:
+    """Highest debt of the loan phase, which is what gets paid off over time."""
+    loan = [r for r in schedule.rows if r.phase == "loan"]
+    if not loan:
+        return None
+    first = loan[0]
+    return max(first.balance + first.principal - first.drawn, *(r.balance for r in loan))
+
+
 def _out(db: DbSession, p: Property) -> PropertyOut:
     today = current_month()
+    factor = amount_factor(p)
     financings: list[LinkedFinancing] = []
-    debt = Decimal(0)
-    payment = Decimal(0)
+    debt = payment = initial_total = Decimal(0)
     for f in db.scalars(
         select(Financing)
         .where(Financing.property_id == p.id)
@@ -68,13 +78,27 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
         remaining = financing_position(f, schedule, today)[1]
         row = schedule.at(today)
         pay = row.outflow if row else Decimal(0)
+        initial = _initial_debt(schedule)
         debt += remaining
         payment += pay
+        initial_total += max(initial or Decimal(0), remaining)
         financings.append(
             LinkedFinancing(
-                id=f.id, name=f.name, remaining_debt=float(remaining), payment_this_month=float(pay)
+                id=f.id,
+                name=f.name,
+                remaining_debt=float(remaining),
+                payment_this_month=float(pay),
+                initial_debt=float(initial) if initial is not None else None,
+                repaid_percent=(
+                    float(cf.cents(max(Decimal(0), 1 - remaining / initial) * HUNDRED))
+                    if initial
+                    else None
+                ),
+                end_month=schedule.end_month,
             )
         )
+    debt, payment = debt * factor, payment * factor
+    repaid = max(Decimal(0), initial_total * factor - debt)
 
     items: list[LinkedItem] = []
     income = costs = Decimal(0)
@@ -98,10 +122,11 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
                 monthly=float(cf.cents(monthly)),
             )
         )
+    income, costs = income * factor, costs * factor
 
     value = property_value(p, today)
-    share = Decimal(p.share_percent) / HUNDRED
-    my_value = cf.cents(value * share)
+    my_value = cf.cents(value * Decimal(p.share_percent) / HUNDRED)
+    my_works = Decimal(p.share_percent) / HUNDRED
     invested = Decimal(p.purchase_price) + Decimal(p.closing_costs)
     invested += sum((Decimal(w.cost) for w in p.works if w.month <= today), Decimal(0))
     surplus = income - costs
@@ -117,6 +142,7 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
         value_as_of=p.value_as_of,
         growth_percent=float(p.growth_percent),
         share_percent=float(p.share_percent),
+        own_share_entered=p.own_share_entered,
         works=[
             WorkOut(
                 id=w.id,
@@ -130,14 +156,18 @@ def _out(db: DbSession, p: Property) -> PropertyOut:
         current_value=float(value),
         my_value=float(my_value),
         debt=float(cf.cents(debt)),
+        repaid=float(cf.cents(repaid)),
+        repaid_percent=(
+            float(cf.cents(repaid / (repaid + debt) * HUNDRED)) if repaid + debt > 0 else None
+        ),
         equity=float(cf.cents(my_value - debt)),
-        invested=float(cf.cents(invested)),
-        value_gain=float(cf.cents(value - invested)),
+        invested=float(cf.cents(invested * my_works)),
+        value_gain=float(cf.cents(value * my_works - invested * my_works)),
         income=float(cf.cents(income)),
         costs=float(cf.cents(costs)),
         financing_payment=float(cf.cents(payment)),
         net_cashflow=float(cf.cents(surplus - payment)),
-        yield_percent=float(cf.cents(surplus * 12 / value * HUNDRED)) if value > 0 else None,
+        yield_percent=float(cf.cents(surplus * 12 / my_value * HUNDRED)) if my_value > 0 else None,
         financings=financings,
         items=items,
     )
@@ -153,6 +183,7 @@ def _apply(p: Property, body: PropertyIn) -> None:
     p.value_as_of = body.value_as_of
     p.growth_percent = body.growth_percent
     p.share_percent = body.share_percent
+    p.own_share_entered = body.own_share_entered
 
 
 @router.get("/properties", response_model=list[PropertyOut])
