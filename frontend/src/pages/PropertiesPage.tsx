@@ -44,6 +44,8 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
   const refresh = useRefresh()
   const [usage, setUsage] = useState<Usage>(property?.usage ?? 'owner_occupied')
   const [owner, setOwner] = useState<number | undefined>(property?.person_id ?? selectedId ?? me?.id)
+  const [partial, setPartial] = useState((property?.share_percent ?? 100) < 100)
+  const [sharePercent, setSharePercent] = useState(property ? num(property.share_percent) : '100')
   const [price, setPrice] = useState(property ? num(property.purchase_price) : '')
   const [closing, setClosing] = useState(property ? num(property.closing_costs) : '')
   const [calculating, setCalculating] = useState(false)
@@ -69,8 +71,8 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
       value: decimalString(f.get('value')),
       value_as_of: String(f.get('value_as_of')),
       growth_percent: decimalString(f.get('growth_percent')) || '0',
-      share_percent: decimalString(f.get('share_percent')) || '100',
-      own_share_entered: ownEntered,
+      share_percent: partial ? decimalString(sharePercent) || '100' : '100',
+      own_share_entered: partial && ownEntered,
     })
   }
 
@@ -134,22 +136,32 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
         Wertentwicklung pro Jahr in Prozent
         <input name="growth_percent" required inputMode="decimal" pattern="-?[0-9]+([.,][0-9]+)?" defaultValue={property ? num(property.growth_percent) : '2'} className={input} />
       </label>
-      <label className="block text-sm">
-        Dein Anteil in Prozent
-        <input name="share_percent" required inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" defaultValue={property ? num(property.share_percent) : '100'} className={input} />
-        <span className="mt-1 block text-xs text-tinte-weich">
-          Bei Miteigentum nur dein Teil, zum Beispiel 50 % mit deinem Bruder. Wert, Schulden, Kosten und Miete zählen dann anteilig.
-        </span>
-      </label>
-      <label className="flex items-start gap-2 text-sm sm:col-span-2">
-        <input type="checkbox" checked={ownEntered} onChange={(e) => setOwnEntered(e.target.checked)} className="mt-1" />
-        <span>
-          Verknüpfte Finanzierungen und Posten enthalten schon nur meinen Anteil
-          <span className="block text-xs text-tinte-weich">
-            Lass das aus, wenn du den ganzen Kredit und alle Kosten des Hauses erfasst hast. Dann rechnet Kontor deinen Anteil heraus.
-          </span>
-        </span>
-      </label>
+      <div className="space-y-3 sm:col-span-2 lg:col-span-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={partial} onChange={(e) => setPartial(e.target.checked)} />
+          Gehört dir die Immobilie nur anteilig? <span className="text-tinte-weich">(zum Beispiel mit deinem Bruder)</span>
+        </label>
+        {partial && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block text-sm">
+              Dein Anteil in Prozent
+              <input value={sharePercent} onChange={(e) => setSharePercent(e.target.value)} required inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" className={input} />
+              <span className="mt-1 block text-xs text-tinte-weich">Wert, Schulden, Kosten und Miete zählen dann anteilig.</span>
+            </label>
+            {property && (property.financings.length > 0 || property.items.length > 0) && (
+              <label className="flex items-start gap-2 text-sm sm:col-span-2">
+                <input type="checkbox" checked={ownEntered} onChange={(e) => setOwnEntered(e.target.checked)} className="mt-1" />
+                <span>
+                  Verknüpfte Finanzierungen und Posten enthalten schon nur meinen Anteil
+                  <span className="block text-xs text-tinte-weich">
+                    Lass das aus, wenn du den ganzen Kredit und alle Kosten des Hauses erfasst hast. Dann rechnet Kontor deinen Anteil heraus.
+                  </span>
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+      </div>
       <div className="flex items-end gap-2">
         <button type="submit" disabled={mutation.isPending} className={primary}>
           Speichern
