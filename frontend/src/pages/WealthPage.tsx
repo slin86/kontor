@@ -148,7 +148,7 @@ export function WealthPage() {
             <h2 id="zusammensetzung" className="mb-4 text-xl">
               Das besitzt du heute
             </h2>
-            <DonutChart slices={view.slices} center={euro(view.now.assets)} caption="Vermögenswerte" height={340} />
+            <DonutChart slices={view.slices} center={euro(view.now.assets)} caption="Vermögenswerte" />
           </section>
           <section aria-labelledby="meilensteine">
             <h2 id="meilensteine" className="mb-4 text-xl">
