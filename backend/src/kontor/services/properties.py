@@ -24,3 +24,8 @@ def property_value(p: Property, month: date) -> Decimal:
         if w.month > p.value_as_of and w.month <= month:
             total += Decimal(w.value_gain) * rate ** _years(w.month, month)
     return cents(total)
+
+
+def amount_factor(p: Property) -> Decimal:
+    """Part of a linked financing's or item's amounts that belongs to the household."""
+    return Decimal(1) if p.own_share_entered else Decimal(p.share_percent) / 100

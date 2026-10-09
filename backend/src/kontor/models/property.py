@@ -4,7 +4,8 @@ import enum
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String
+import sqlalchemy as sa
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kontor.core.db import Base
@@ -37,6 +38,10 @@ class Property(Base):
     value_as_of: Mapped[date] = mapped_column(Date)
     growth_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     share_percent: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=100)
+    # True when linked financings and items already contain only the household's own part
+    own_share_entered: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.false()
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     works: Mapped[list["PropertyWork"]] = relationship(

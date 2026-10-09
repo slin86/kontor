@@ -24,7 +24,7 @@ from kontor.schemas.wealth import (
 from kontor.services.audit import record as audit
 from kontor.services.financing_book import all_payouts, load_book
 from kontor.services.people import get_person, own_person
-from kontor.services.properties import property_value
+from kontor.services.properties import amount_factor, property_value
 
 router = APIRouter(prefix="/api", tags=["wealth"])
 
@@ -164,7 +164,17 @@ def wealth(
     if scope is not None:
         pquery = pquery.filter(Property.person_id == scope)
     properties = pquery.order_by(Property.name, Property.id).all()
+    factors = {
+        pid: amount_factor(p)
+        for pid, p in (
+            (p.id, p) for p in db.query(Property).filter_by(household_id=user.household_id)
+        )
+    }
     book = load_book(db, user.household_id, scope)
+
+    def mine(f: Financing) -> Decimal:
+        """Share of a financing that belongs to the household (property links can be partial)."""
+        return factors.get(f.property_id, Decimal(1)) if f.property_id else Decimal(1)
 
     series: list[WealthSeries] = [WealthSeries(key="depot", name="Depot", group="depot")]
     for f, _ in book.items:
@@ -184,13 +194,13 @@ def wealth(
         ahead = (m.year - today.year) * 12 + m.month - today.month
         row: list[Decimal] = [Decimal(str(depot_at[m].value)) if m in depot_at else Decimal(0)]
         row += [
-            financing_position(f, s, m)[0]
+            financing_position(f, s, m)[0] * mine(f)
             for f, s in book.items
             if f.kind == FinancingKind.BUILDING_SAVINGS
         ]
         row += [cf.cents(property_value(p, m) * Decimal(p.share_percent) / 100) for p in properties]
         row += [asset_value(a, m, today) for a in assets]
-        row += [financing_position(f, s, m)[1] for f, s in book.items]
+        row += [financing_position(f, s, m)[1] * mine(f) for f, s in book.items]
         raw.append([dep.deflate(v, infl, ahead) for v in row])
 
     keep = [i for i in range(len(series)) if i == 0 or any(r[i] != 0 for r in raw)]

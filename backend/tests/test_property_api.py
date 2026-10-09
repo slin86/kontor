@@ -39,7 +39,7 @@ def test_property_value_share_and_works(client: TestClient) -> None:
     assert r.status_code == 201
     out = r.json()
     assert len(out["works"]) == 1
-    assert out["invested"] == 270000  # a future work is not yet paid
+    assert out["invested"] == 135000  # own half; a future work is not yet paid
     w = client.get("/api/wealth", params={"years": 2, "back_months": 0}).json()
     idx = next(i for i, s in enumerate(w["series"]) if s["group"] == "property")
     values = {pt["month"]: pt["values"][idx] for pt in w["points"]}
@@ -90,3 +90,22 @@ def test_delete_unlinks(client: TestClient) -> None:
     assert client.delete(f"/api/properties/{p['id']}").status_code == 204
     assert client.get("/api/properties").json() == []
     assert client.get(f"/api/financings/{f['id']}").status_code == 200
+
+
+def test_share_scales_debt_costs_and_wealth(client: TestClient) -> None:
+    _login(client)
+    p = _house(client, share_percent="50")
+    f = _create(client, {**LOAN, "start": "2026-01"})
+    client.put(f"/api/properties/{p['id']}/links", json={"financing_ids": [f["id"]]})
+    half = client.get(f"/api/properties/{p['id']}").json()
+    fin = half["financings"][0]
+    assert half["debt"] == pytest.approx(fin["remaining_debt"] / 2, abs=0.01)
+    assert half["financing_payment"] == pytest.approx(fin["payment_this_month"] / 2, abs=0.01)
+    assert 0 < half["repaid_percent"] < 100
+    assert fin["repaid_percent"] == pytest.approx(half["repaid_percent"], abs=0.1)
+    w = client.get("/api/wealth", params={"years": 1, "back_months": 0}).json()
+    idx = next(i for i, s in enumerate(w["series"]) if s["group"] == "debt")
+    now = next(pt for pt in w["points"] if pt["month"] == "2026-10")
+    assert now["values"][idx] == pytest.approx(half["debt"], abs=0.01)
+    own = client.put(f"/api/properties/{p['id']}", json={**HOUSE, "own_share_entered": True}).json()
+    assert own["debt"] == pytest.approx(fin["remaining_debt"], abs=0.01)
