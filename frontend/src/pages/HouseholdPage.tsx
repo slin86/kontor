@@ -124,6 +124,77 @@ function PeopleSection() {
   )
 }
 
+function HouseholdsSection() {
+  const households = useQuery({ queryKey: ['households'], queryFn: householdApi.households })
+  // all data on screen belongs to the previous household, so reload after every change
+  const done = () => window.location.assign('/haushalt')
+  const switchTo = useMutation({ mutationFn: householdApi.switchHousehold, onSuccess: done })
+  const create = useMutation({ mutationFn: householdApi.createHousehold, onSuccess: done })
+  const join = useMutation({ mutationFn: householdApi.joinHousehold, onSuccess: done })
+
+  return (
+    <section aria-labelledby="haushalte">
+      <h2 id="haushalte" className="text-xl">
+        Meine Haushalte
+      </h2>
+      <p className="mt-2 max-w-2xl text-sm text-tinte-weich">
+        Mit einem Konto kannst du mehrere Haushalte führen, etwa deinen eigenen und ein Ferienhaus mit der Familie. Jeder Haushalt ist vollständig getrennt: eigene
+        Personen, Posten, Finanzierungen, Immobilien und Depots. Es fließt nichts zwischen ihnen.
+      </p>
+      <ul className="mt-3 divide-y divide-tinte/15">
+        {households.data?.map((h) => (
+          <li key={h.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3">
+            <span className="font-medium">{h.name}</span>
+            {h.is_active ? (
+              <span className="ml-auto text-sm text-tinte-weich">Du arbeitest gerade hier</span>
+            ) : (
+              <button type="button" disabled={switchTo.isPending} onClick={() => switchTo.mutate(h.id)} className="ml-auto text-sm font-medium text-elbe-dunkel hover:underline">
+                Wechseln
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 grid gap-6 sm:grid-cols-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = String(new FormData(e.currentTarget).get('name') ?? '').trim()
+            if (name) create.mutate(name)
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <label className="block text-sm">
+            Neuer Haushalt
+            <input name="name" required maxLength={120} placeholder="z. B. Ferienhaus" className={input} />
+          </label>
+          <button type="submit" disabled={create.isPending} className={primary}>
+            Anlegen
+          </button>
+          <ErrorLine error={create.error} />
+        </form>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const code = String(new FormData(e.currentTarget).get('code') ?? '').trim()
+            if (code) join.mutate(code)
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <label className="block text-sm">
+            Mit Einladungscode beitreten
+            <input name="code" required maxLength={64} autoComplete="off" className={input} />
+          </label>
+          <button type="submit" disabled={join.isPending} className={primary}>
+            Beitreten
+          </button>
+          <ErrorLine error={join.error} />
+        </form>
+      </div>
+    </section>
+  )
+}
+
 function MembersSection() {
   const qc = useQueryClient()
   const household = useQuery({ queryKey: ['household'], queryFn: householdApi.get })
@@ -240,6 +311,7 @@ export function HouseholdPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Haushalt</h1>
+      <HouseholdsSection />
       <PeopleSection />
       <MembersSection />
     </div>

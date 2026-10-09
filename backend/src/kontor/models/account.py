@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kontor.core.db import Base
@@ -30,6 +30,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # The household the account currently works in; the others are found through ``Person``.
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(80))
@@ -50,14 +51,14 @@ class Person(Base):
     """
 
     __tablename__ = "persons"
+    # An account can belong to several households, with one person in each of them.
+    __table_args__ = (Index("uq_persons_household_user", "household_id", "user_id", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
     name: Mapped[str] = mapped_column(String(80))
     # Set when the person signs in with their own account.
-    user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True, unique=True, index=True
-    )
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

@@ -29,7 +29,17 @@ export const peopleApi = {
   remove: (id: number) => api<void>(`/people/${id}`, { method: 'DELETE' }),
 }
 
+export interface HouseholdBrief {
+  id: number
+  name: string
+  is_active: boolean
+}
+
 export const householdApi = {
+  households: () => api<HouseholdBrief[]>('/households'),
+  createHousehold: (name: string) => api<HouseholdBrief[]>('/households', { method: 'POST', json: { name } }),
+  joinHousehold: (invite_code: string) => api<HouseholdBrief[]>('/households/join', { method: 'POST', json: { invite_code } }),
+  switchHousehold: (id: number) => api<HouseholdBrief[]>(`/households/${id}/switch`, { method: 'POST' }),
   get: () => api<HouseholdDetail>('/household'),
   rename: (name: string) => api<HouseholdDetail>('/household', { method: 'PUT', json: { name } }),
   renewInviteCode: () => api<HouseholdDetail>('/household/invite-code', { method: 'POST' }),

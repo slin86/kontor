@@ -23,7 +23,9 @@ def add_person(db: Session, household_id: int, name: str, user: User | None = No
 
 def own_person(db: Session, user: User) -> Person:
     """The person that belongs to a signed-in user (created on the fly for older accounts)."""
-    person = db.scalar(select(Person).where(Person.user_id == user.id))
+    person = db.scalar(
+        select(Person).where(Person.user_id == user.id, Person.household_id == user.household_id)
+    )
     if person is None:
         person = add_person(db, user.household_id, user.display_name, user)
     return person

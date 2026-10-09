@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api } from '../api'
 import { useAuth } from '../auth'
+import { householdApi } from '../peopleApi'
 import { useTheme } from '../theme'
 import { WEB_VERSION } from '../version'
 
@@ -23,6 +24,14 @@ export function AccountMenu() {
     enabled: open,
     staleTime: Infinity,
   })
+
+  const households = useQuery({ queryKey: ['households'], queryFn: householdApi.households, enabled: open })
+  const switchTo = useMutation({
+    mutationFn: householdApi.switchHousehold,
+    // everything on screen belongs to the old household, so start over
+    onSuccess: () => window.location.assign('/'),
+  })
+  const several = (households.data?.length ?? 0) > 1
 
   return (
     <div
@@ -48,6 +57,24 @@ export function AccountMenu() {
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full z-20 w-60 border border-tinte/20 bg-karte shadow-lg">
+          {several && (
+            <div role="group" aria-label="Haushalt wechseln" className="border-b border-tinte/15 py-1">
+              {households.data?.map((h) => (
+                <button
+                  key={h.id}
+                  role="menuitemradio"
+                  aria-checked={h.is_active}
+                  type="button"
+                  disabled={switchTo.isPending}
+                  onClick={() => !h.is_active && switchTo.mutate(h.id)}
+                  className={`${item} ${h.is_active ? 'font-semibold' : ''}`}
+                >
+                  <span aria-hidden>{h.is_active ? '● ' : '○ '}</span>
+                  {h.name}
+                </button>
+              ))}
+            </div>
+          )}
           <Link role="menuitem" to="/konto" onClick={() => setOpen(false)} className={item}>
             Mein Konto
           </Link>
