@@ -115,13 +115,18 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
       <label className="block text-sm">
         Kaufnebenkosten in Euro
         <input name="closing_costs" value={closing} onChange={(e) => setClosing(e.target.value)} inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} className={input} />
-        <span className="mt-1 block text-xs text-tinte-weich">
-          Notar, Grunderwerbsteuer, Makler.{' '}
-          <button type="button" onClick={() => setCalculating(!calculating)} className="font-medium text-elbe-dunkel hover:underline">
-            Nebenkosten berechnen
-          </button>
-        </span>
+        <span className="mt-1 block text-xs text-tinte-weich">Notar, Grunderwerbsteuer, Makler.</span>
       </label>
+      <div className="flex items-start pt-6">
+        <button
+          type="button"
+          aria-expanded={calculating}
+          onClick={() => setCalculating(!calculating)}
+          className="border-2 border-elbe px-4 py-2 text-sm font-semibold text-elbe-dunkel hover:bg-elbe hover:text-karte"
+        >
+          {calculating ? 'Rechner schließen' : 'Nebenkosten berechnen'}
+        </button>
+      </div>
       {calculating && <ClosingCostsCalculator price={price} onApply={setClosing} onClose={() => setCalculating(false)} />}
       <label className="block text-sm">
         Aktueller Wert in Euro
