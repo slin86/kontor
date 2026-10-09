@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
 import { cashflowApi } from '../cashflowApi'
+import { ClosingCostsCalculator } from '../components/ClosingCostsCalculator'
 import { ConfirmDelete } from '../components/ConfirmDelete'
 import { decimalString, input, primary, secondary } from '../components/ui'
 import { euro } from '../format'
@@ -45,6 +46,9 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
   const [owner, setOwner] = useState<number | undefined>(property?.person_id ?? selectedId ?? me?.id)
   const [partial, setPartial] = useState((property?.share_percent ?? 100) < 100)
   const [sharePercent, setSharePercent] = useState(property ? num(property.share_percent) : '100')
+  const [price, setPrice] = useState(property ? num(property.purchase_price) : '')
+  const [closing, setClosing] = useState(property ? num(property.closing_costs) : '')
+  const [calculating, setCalculating] = useState(false)
   const [ownEntered, setOwnEntered] = useState(property?.own_share_entered ?? false)
   const mutation = useMutation({
     mutationFn: (v: Parameters<typeof propertyApi.create>[0]) => (property ? propertyApi.update(property.id, v) : propertyApi.create(v)),
@@ -106,13 +110,19 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
       </label>
       <label className="block text-sm">
         Kaufpreis in Euro
-        <input name="purchase_price" required inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} defaultValue={property ? num(property.purchase_price) : ''} className={input} />
+        <input name="purchase_price" value={price} onChange={(e) => setPrice(e.target.value)} required inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} className={input} />
       </label>
       <label className="block text-sm">
         Kaufnebenkosten in Euro
-        <input name="closing_costs" inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} defaultValue={property ? num(property.closing_costs) : ''} className={input} />
-        <span className="mt-1 block text-xs text-tinte-weich">Notar, Grunderwerbsteuer, Makler.</span>
+        <input name="closing_costs" value={closing} onChange={(e) => setClosing(e.target.value)} inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} className={input} />
+        <span className="mt-1 block text-xs text-tinte-weich">
+          Notar, Grunderwerbsteuer, Makler.{' '}
+          <button type="button" onClick={() => setCalculating(!calculating)} className="font-medium text-elbe-dunkel hover:underline">
+            Nebenkosten berechnen
+          </button>
+        </span>
       </label>
+      {calculating && <ClosingCostsCalculator price={price} onApply={setClosing} onClose={() => setCalculating(false)} />}
       <label className="block text-sm">
         Aktueller Wert in Euro
         <input name="value" required inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} defaultValue={property ? num(property.value) : ''} className={input} />
