@@ -44,6 +44,9 @@ function AssetRow({ asset, owner, onEdit }: { asset: Asset; owner?: string; onEd
   )
 }
 
+/** Time spans to choose from, in steps of five years. */
+const YEAR_CHOICES = Array.from({ length: 10 }, (_, n) => (n + 1) * 5)
+
 export function WealthPage() {
   const { selectedId, selected, people } = usePerson()
   const [years, setYears] = useState(20)
@@ -89,7 +92,7 @@ export function WealthPage() {
           <label>
             Zeitraum
             <select value={years} onChange={(e) => setYears(Number(e.target.value))} className={`${input} !mt-1 w-auto`}>
-              {[10, 20, 30, 40, 50].map((y) => (
+              {YEAR_CHOICES.map((y) => (
                 <option key={y} value={y}>
                   {y} Jahre
                 </option>

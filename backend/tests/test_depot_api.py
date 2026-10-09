@@ -95,7 +95,10 @@ def test_rate_change_keeps_later_changes_and_locks_the_past(client: TestClient) 
         ("2027-01", "2028-01", 400),
         ("2028-01", None, 500),
     ]
-    assert client.post(base, json={"effective_from": "2026-09", "amount": "1"}).status_code == 409
+    past = client.post(base, json={"effective_from": "2026-09", "amount": "1"})
+    assert past.status_code == 200, past.text  # past months can be corrected as well
+    before_start = client.post(base, json={"effective_from": "2025-12", "amount": "1"})
+    assert before_start.status_code == 422
     assert client.post(base, json={"effective_from": "2026-10", "amount": "0"}).status_code == 200
     assert client.get("/api/depot").json()["base_rate"] == 0
 
@@ -106,14 +109,17 @@ def test_one_offs_are_validated_and_removable(client: TestClient) -> None:
     base = f"/api/depot/instruments/{i['id']}/one-offs"
     ok = client.post(base, json={"month": "2027-06", "amount": "2000", "note": "Bonus"})
     assert ok.status_code == 200, ok.text
-    assert client.post(base, json={"month": "2026-09", "amount": "5"}).status_code == 409
+    past = client.post(base, json={"month": "2026-09", "amount": "5"})
+    assert past.status_code == 200, past.text  # deposits can be recorded afterwards
+    assert client.post(base, json={"month": "2025-06", "amount": "5"}).status_code == 422
+    client.delete(f"{base}/{past.json()['one_offs'][0]['id']}")
     assert client.post(base, json={"month": "2027-06", "amount": "0"}).status_code == 422
     too_much = client.post(base, json={"month": "2027-07", "amount": "-900000"})
     assert too_much.status_code == 422
     assert "übersteigt" in too_much.json()["detail"]
 
     one_off = ok.json()["one_offs"][0]
-    assert one_off["amount"] == 2000 and not one_off["locked"]
+    assert one_off["amount"] == 2000
     gone = client.delete(f"{base}/{one_off['id']}")
     assert gone.status_code == 200 and gone.json()["one_offs"] == []
 
@@ -167,7 +173,9 @@ def test_projection_history_future_scenarios_and_inflation(client: TestClient) -
 
     real = client.get("/api/depot/projection", params={"years": 20, "inflation": 2}).json()
     assert real["points"][-1]["value"] < points[-1]["value"]
-    assert real["points"][-1]["paid_in"] == points[-1]["paid_in"]
+    # deposits are expressed in today's purchasing power too, so value and paid-in compare
+    assert real["points"][-1]["paid_in"] < points[-1]["paid_in"]
+    assert real["points"][0]["paid_in"] == points[0]["paid_in"]
 
     later = client.get("/api/depot/projection", params={"years": 20, "start": "2030-01"}).json()
     assert later["points"][0]["month"] == "2030-01"

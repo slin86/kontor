@@ -44,10 +44,6 @@ from kontor.services.people import get_person, own_person
 
 router = APIRouter(prefix="/api/depot", tags=["depot"])
 
-LOCKED_MESSAGE = (
-    "Dieser Monat ist abgeschlossen. Der Plan für vergangene Monate lässt sich nicht ändern; "
-    "korrigiere stattdessen Startmonat und Startwert mit einer Begründung."
-)
 MAX_YEARS = 100
 
 
@@ -109,7 +105,6 @@ def _summary(i: Instrument) -> InstrumentOut:
 
 
 def _detail(i: Instrument) -> InstrumentDetailOut:
-    today = current_month()
     return InstrumentDetailOut(
         **_summary(i).model_dump(),
         rates=[
@@ -118,14 +113,11 @@ def _detail(i: Instrument) -> InstrumentDetailOut:
                 amount=float(r.amount),
                 valid_from=r.valid_from,
                 valid_to=r.valid_to,
-                locked=r.valid_from < today,
             )
             for r in i.rates
         ],
         one_offs=[
-            OneOffOut(
-                id=o.id, month=o.month, amount=float(o.amount), note=o.note, locked=o.month < today
-            )
+            OneOffOut(id=o.id, month=o.month, amount=float(o.amount), note=o.note)
             for o in i.one_offs
         ],
     )
@@ -328,8 +320,6 @@ def change_rate(
     instrument_id: int, body: RateChange, user: CurrentUser, db: DbSession
 ) -> InstrumentDetailOut:
     """New monthly savings rate from a month on (0 pauses saving). Later changes are kept."""
-    if body.effective_from < current_month():
-        raise HTTPException(status.HTTP_409_CONFLICT, LOCKED_MESSAGE)
     i = _get(db, user, instrument_id)
     before = _rates_snapshot(i)
     try:
@@ -356,8 +346,6 @@ def add_one_off(
 ) -> InstrumentDetailOut:
     if body.amount == 0:
         raise HTTPException(422, "Der Betrag darf nicht 0 sein.")
-    if body.month < current_month():
-        raise HTTPException(status.HTTP_409_CONFLICT, LOCKED_MESSAGE)
     i = _get(db, user, instrument_id)
     if body.month < i.start:
         raise HTTPException(422, "Die Zahlung liegt vor dem Start der Position.")
@@ -386,8 +374,6 @@ def remove_one_off(
     o = next((x for x in i.one_offs if x.id == one_off_id), None)
     if o is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Einmalzahlung nicht gefunden")
-    if o.month < current_month():
-        raise HTTPException(status.HTTP_409_CONFLICT, LOCKED_MESSAGE)
     snapshot = {"month": format_month(o.month), "amount": str(o.amount), "note": o.note}
     i.one_offs.remove(o)
     db.flush()
@@ -463,11 +449,20 @@ def projection(
         ahead = (month.year - today.year) * 12 + month.month - today.month
         return float(cf.cents(dom.deflate(value, infl, ahead)))
 
+    # Every deposit counts with the purchasing power of its own month, like the values do.
+    real_paid: list[float] = []
+    running, previous = Decimal(0), Decimal(0)
+    for m in months:
+        ahead = (m.month.year - today.year) * 12 + m.month.month - today.month
+        running += dom.deflate(m.paid_in - previous, infl, ahead)
+        previous = m.paid_in
+        real_paid.append(float(cf.cents(running)))
+
     points = [
         ProjectionPoint(
             month=m.month,
             value=real(m.value, m.month),
-            paid_in=float(cf.cents(m.paid_in)),
+            paid_in=real_paid[n],
             deposit=float(cf.cents(m.deposit)),
             fees=float(cf.cents(m.fees)),
             balances=[real(m.balances[p.id], m.month) for p in positions],
@@ -475,7 +470,7 @@ def projection(
             tax_on_sale=real(taxes[m.month].sale_tax, m.month),
             net_value=real(m.value - taxes[m.month].total, m.month),
         )
-        for m in months
+        for n, m in enumerate(months)
     ]
     return ProjectionOut(
         first=first,

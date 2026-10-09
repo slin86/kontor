@@ -229,7 +229,7 @@ export function AssumptionsForm({ detail, onDone }: { detail: InstrumentDetail; 
 
 export function RateForm({ detail }: { detail: InstrumentDetail }) {
   const { current } = useMonth()
-  const min = detail.start > current ? detail.start : current
+  const first = detail.start > current ? detail.start : current
   const mutation = useDepotMutation((v: { effective_from: string; amount: string }) => depotApi.changeRate(detail.id, v))
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -240,7 +240,7 @@ export function RateForm({ detail }: { detail: InstrumentDetail }) {
     <form onSubmit={submit} className="grid items-end gap-4 sm:grid-cols-3">
       <label className="block text-sm">
         Ab Monat
-        <input name="effective_from" type="month" required min={min} defaultValue={min} className={input} />
+        <input name="effective_from" type="month" required min={detail.start} defaultValue={first} className={input} />
       </label>
       <Num label="Neue Sparrate pro Monat in Euro" name="amount" hint="0 pausiert das Sparen." />
       <button type="submit" disabled={mutation.isPending} className={primary}>
@@ -255,7 +255,7 @@ export function RateForm({ detail }: { detail: InstrumentDetail }) {
 
 export function OneOffForm({ detail }: { detail: InstrumentDetail }) {
   const { current } = useMonth()
-  const min = detail.start > current ? detail.start : current
+  const first = detail.start > current ? detail.start : current
   const [direction, setDirection] = useState<'in' | 'out'>('in')
   const mutation = useDepotMutation((v: { month: string; amount: string; note: string | null }) =>
     depotApi.addOneOff(detail.id, v),
@@ -278,7 +278,7 @@ export function OneOffForm({ detail }: { detail: InstrumentDetail }) {
       </label>
       <label className="block text-sm">
         Im Monat
-        <input name="month" type="month" required min={min} defaultValue={min} className={input} />
+        <input name="month" type="month" required min={detail.start} defaultValue={first} className={input} />
       </label>
       <label className="block text-sm">
         Betrag in Euro
