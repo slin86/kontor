@@ -10,7 +10,7 @@ import { financingApi } from '../financingApi'
 import { useMonth } from '../month'
 import { monthLabel } from '../monthUtils'
 import { usePerson } from '../person'
-import { propertyApi, USAGE_LABEL, type Property, type Usage } from '../propertyApi'
+import { propertyApi, USAGE_LABEL, type LinkedFinancing, type Property, type Usage } from '../propertyApi'
 
 const num = (v: number) => String(v).replace('.', ',')
 
@@ -36,6 +36,28 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: '
 function useRefresh() {
   const qc = useQueryClient()
   return () => Promise.all([qc.invalidateQueries({ queryKey: ['properties'] }), qc.invalidateQueries({ queryKey: ['wealth'] })])
+}
+
+/** One line about the state of a linked financing; Bauspar contracts have a saving phase first. */
+function financingStatus(f: LinkedFinancing): string {
+  const parts: string[] = []
+  if (f.kind === 'building_savings') {
+    parts.push(f.prefinanced ? 'Bausparfinanzierung' : 'Bausparvertrag')
+    if (f.phase === 'saving' || f.phase === 'not_started') {
+      parts.push(f.phase === 'saving' ? 'Sparphase' : 'noch nicht gestartet')
+      if (f.saved !== null) parts.push(`angespart ${euro(f.saved)}`)
+      if (f.prefinanced || f.remaining_debt > 0) parts.push(`Restschuld ${euro(f.remaining_debt)}`)
+      if (f.loan_start) parts.push(`Tilgung ab ${monthLabel(f.loan_start)}`)
+      return parts.join(' · ')
+    }
+    parts.push(f.phase === 'finished' ? 'abbezahlt' : 'Tilgungsphase')
+  } else {
+    parts.push('Finanzierung')
+  }
+  parts.push(`Restschuld ${euro(f.remaining_debt)}`)
+  if (f.repaid_percent !== null) parts.push(`${num(Math.round(f.repaid_percent))} % getilgt`)
+  if (f.remaining_debt > 0) parts.push(`bis ${monthLabel(f.end_month)}`)
+  return parts.join(' · ')
 }
 
 function PropertyForm({ property, onDone }: { property?: Property; onDone: () => void }) {
@@ -312,11 +334,7 @@ function LinkSection({ property }: { property: Property }) {
           {property.financings.map((f) => (
             <li key={`f${f.id}`} className="flex flex-wrap gap-x-4 py-2">
               <span className="font-medium">{f.name}</span>
-              <span className="text-tinte-weich">
-                Finanzierung · Restschuld {euro(f.remaining_debt)}
-                {f.repaid_percent !== null && ` · ${num(Math.round(f.repaid_percent))} % getilgt`}
-                {f.remaining_debt > 0 && ` · bis ${monthLabel(f.end_month)}`}
-              </span>
+              <span className="text-tinte-weich">{financingStatus(f)}</span>
               <span className="zahl ml-auto text-bake">{euro(f.payment_this_month)} / Monat</span>
             </li>
           ))}
@@ -415,7 +433,7 @@ function PropertyCard({ property: p, owner }: { property: Property; owner?: stri
           {p.usage === 'rented' && <Figure label="Einnahmen pro Monat" value={euro(p.income)} />}
           <Figure label="Laufende Kosten pro Monat" value={euro(p.costs)} />
           <Figure label="Rate der Finanzierung" value={euro(p.financing_payment)} />
-          <Figure label="Bleibt im Monat" value={euro(p.net_cashflow)} tone={p.net_cashflow < 0 ? 'minus' : 'plus'} />
+          {p.usage === 'rented' && <Figure label="Bleibt im Monat" value={euro(p.net_cashflow)} tone={p.net_cashflow < 0 ? 'minus' : 'plus'} />}
           {p.usage === 'rented' && p.yield_percent !== null && <Figure label="Rendite vor Finanzierung" value={`${num(p.yield_percent)} %`} />}
         </div>
       )}

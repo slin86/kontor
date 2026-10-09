@@ -24,6 +24,11 @@ export interface LinkedFinancing {
   initial_debt: number | null
   repaid_percent: number | null
   end_month: string
+  kind: 'loan' | 'building_savings' | 'credit_line'
+  phase: 'not_started' | 'saving' | 'loan' | 'finished'
+  prefinanced: boolean
+  saved: number | null
+  loan_start: string | null
 }
 
 export interface LinkedItem {

@@ -49,6 +49,11 @@ class LinkedFinancing(BaseModel):
     initial_debt: float | None  # highest debt of the loan phase
     repaid_percent: float | None
     end_month: Month  # first month without any payment
+    kind: Literal["loan", "building_savings", "credit_line"]
+    phase: Literal["not_started", "saving", "loan", "finished"]
+    prefinanced: bool  # Bausparfinanzierung: advance loan next to the saving phase
+    saved: float | None  # Bausparguthaben
+    loan_start: Month | None  # first month of the loan phase (Tilgungsphase)
 
 
 class LinkedItem(BaseModel):
