@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { AccountMenu } from './AccountMenu'
@@ -42,19 +43,30 @@ function Main() {
 export function Layout() {
   const path = useLocation().pathname
   const inCashflow = CASHFLOW_PATHS.includes(path)
+  const nav = useRef<HTMLElement>(null)
+
+  // On a phone the navigation scrolls sideways; keep the current area in view.
+  useEffect(() => {
+    nav.current?.querySelector('[data-active="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [path])
 
   return (
     <div className="min-h-screen">
-      <header className="flex flex-wrap items-baseline gap-x-8 gap-y-2 px-4 py-4 sm:px-6">
+      <header className="flex flex-wrap items-center gap-x-8 gap-y-1 px-4 pt-3 sm:items-baseline sm:px-6 sm:py-4">
         <span className="font-display text-2xl font-bold tracking-tight">Kontor</span>
-        <nav className="flex gap-5" aria-label="Hauptnavigation">
+        <nav
+          ref={nav}
+          className="order-3 -mx-4 flex w-[calc(100%+2rem)] gap-6 overflow-x-auto px-4 [scrollbar-width:none] sm:order-none sm:mx-0 sm:w-auto sm:gap-5 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
+          aria-label="Hauptnavigation"
+        >
           {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               end={n.end}
+              data-active={n.to === '/' ? inCashflow : path === n.to}
               className={({ isActive }) =>
-                `border-b-2 pb-0.5 text-sm font-medium ${
+                `shrink-0 whitespace-nowrap border-b-2 py-2.5 text-sm font-medium sm:py-0 sm:pb-0.5 ${
                   (n.to === '/' ? inCashflow : isActive) ? 'border-elbe text-tinte' : 'border-transparent text-tinte-weich hover:text-tinte'
                 }`
               }
@@ -63,7 +75,7 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="ml-auto text-sm">
+        <div className="ml-auto text-sm sm:order-none">
           <AccountMenu />
         </div>
       </header>

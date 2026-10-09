@@ -71,7 +71,7 @@ function Outlook() {
         </p>
       )}
       <div className="mb-4 flex flex-wrap gap-6 text-sm">
-        <label>
+        <label className="flex flex-col">
           Zeitraum
           <select value={years} onChange={(e) => setYears(Number(e.target.value))} className={`${input} !mt-1 w-auto`}>
             {[10, 20, 30, 40].map((y) => (
@@ -81,7 +81,7 @@ function Outlook() {
             ))}
           </select>
         </label>
-        <label>
+        <label className="flex flex-col">
           Einnahmen wachsen pro Jahr um (%)
           <input
             defaultValue={String(income).replace('.', ',')}
@@ -91,7 +91,7 @@ function Outlook() {
             className={`${input} !mt-1 !w-24`}
           />
         </label>
-        <label>
+        <label className="flex flex-col">
           Ausgaben wachsen pro Jahr um (%)
           <input
             defaultValue={String(expense).replace('.', ',')}
