@@ -134,20 +134,20 @@ function PropertyForm({ property, onDone }: { property?: Property; onDone: () =>
         Kaufpreis in Euro
         <input name="purchase_price" value={price} onChange={(e) => setPrice(e.target.value)} required inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} className={input} />
       </label>
-      <label className="block text-sm">
-        Kaufnebenkosten in Euro
-        <input name="closing_costs" value={closing} onChange={(e) => setClosing(e.target.value)} inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} className={input} />
-        <span className="mt-1 block text-xs text-tinte-weich">Notar, Grunderwerbsteuer, Makler.</span>
-      </label>
-      <div className="flex items-start pt-6">
+      <div className="text-sm">
+        <label className="block">
+          Kaufnebenkosten in Euro
+          <input name="closing_costs" value={closing} onChange={(e) => setClosing(e.target.value)} inputMode="decimal" {...{ pattern: '[0-9.]+([,][0-9]{1,2})?' }} className={input} />
+        </label>
         <button
           type="button"
           aria-expanded={calculating}
           onClick={() => setCalculating(!calculating)}
-          className="border-2 border-elbe px-4 py-2 text-sm font-semibold text-elbe-dunkel hover:bg-elbe hover:text-karte"
+          className="mt-2 w-full border-2 border-elbe px-4 py-2 text-sm font-semibold text-elbe-dunkel hover:bg-elbe hover:text-karte"
         >
           {calculating ? 'Rechner schließen' : 'Nebenkosten berechnen'}
         </button>
+        <span className="mt-1 block text-xs text-tinte-weich">Notar, Grunderwerbsteuer, Makler. Der Rechner schätzt sie aus dem Kaufpreis.</span>
       </div>
       {calculating && <ClosingCostsCalculator price={price} onApply={setClosing} onClose={() => setCalculating(false)} />}
       <label className="block text-sm">
