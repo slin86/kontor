@@ -1,0 +1,16 @@
+# Public route on the `public` entrypoint (TLS terminated by Traefik), same style as the other slin.io apps.
+# The internal home.lan Ingress stays as it is.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: kontor-public
+spec:
+  entryPoints:
+    - public
+  routes:
+    - match: Host(`kontor.slin.io`)
+      kind: Rule
+      services:
+        - name: kontor-web
+          port: 80
+  tls: {}
