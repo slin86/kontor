@@ -19,6 +19,7 @@ from kontor.core.throttle import Throttle
 from kontor.models import AuthSession, Household, User
 from kontor.schemas.auth import HouseholdOut, LoginRequest, MeOut, RegisterRequest, UserOut
 from kontor.services.categories import seed_default_categories
+from kontor.services.households import member_users
 from kontor.services.people import add_person
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -85,10 +86,16 @@ def _start_session(db: DbSession, response: Response, user: User) -> None:
     )
 
 
-def _me(user: User) -> MeOut:
+def _me(db: DbSession, user: User) -> MeOut:
+    household = user.household
     return MeOut(
         user=UserOut.model_validate(user),
-        household=HouseholdOut.model_validate(user.household),
+        household=HouseholdOut(
+            id=household.id,
+            name=household.name,
+            invite_code=household.invite_code,
+            members=[UserOut.model_validate(m) for m in member_users(db, household.id)],
+        ),
     )
 
 
@@ -142,7 +149,7 @@ def register(body: RegisterRequest, request: Request, response: Response, db: Db
     add_person(db, household.id, user.display_name, user)
     db.refresh(household)
     _start_session(db, response, user)
-    return _me(user)
+    return _me(db, user)
 
 
 @router.post("/login", response_model=MeOut)
@@ -159,7 +166,7 @@ def login(body: LoginRequest, request: Request, response: Response, db: DbSessio
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
     _start_session(db, response, user)
-    return _me(user)
+    return _me(db, user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -171,5 +178,5 @@ def logout(auth: CurrentSession, response: Response, db: DbSession) -> None:
 
 
 @router.get("/me", response_model=MeOut)
-def me(user: CurrentUser, request: Request) -> MeOut:
-    return _me(user)
+def me(user: CurrentUser, db: DbSession) -> MeOut:
+    return _me(db, user)
