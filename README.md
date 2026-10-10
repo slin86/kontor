@@ -174,6 +174,13 @@ Everything below also works without AI; the helper only saves typing.
   "Bitte prüfen" and starts unselected. Every kind of document is first classified; a document that clearly
   belongs elsewhere is refused with a pointer to the right page ("Das ist ein Kontoauszug ...").
 
+**Background jobs.** An upload does not block the page. Kontor starts a job, you keep working, and a notice in the
+corner of every page says when the document is read ("Ergebnis ansehen"). Jobs run one at a time on the local
+server. If the AI machine is off or still loading its model, the job waits (`KONTOR_AI_WAIT_MINUTES`, default 10,
+retrying every `KONTOR_AI_RETRY_SECONDS`, default 15) and continues by itself, so a machine that wakes up on
+demand works. Results stay in the API's memory for up to 24 hours or until you dismiss them; nothing is written
+to the database and the file is dropped when the job ends. A restart of the API loses open jobs; upload again.
+
 **Where the model runs.** Statements, and anything derived from them, only go to a *local* server that
 speaks the OpenAI API: Ollama (`OLLAMA_HOST=0.0.0.0` so the cluster can reach it) or LM Studio (serve on
 the local network, Developer tab). Set `KONTOR_AI_LOCAL_URL` in `base/configmap.yaml`: Ollama listens on

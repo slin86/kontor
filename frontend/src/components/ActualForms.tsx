@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { actualsApi, KIND_LABEL, type Transaction } from '../actualsApi'
 import { aiApi, type DepotPreview } from '../aiApi'
 import { depotApi } from '../depotApi'
 import { euro } from '../format'
+import { JobProgress, useFinishJob, useJob, useJobParam, useStartJob } from '../jobs'
 import { useMonth } from '../month'
 import { monthLabel } from '../monthUtils'
 import { usePerson } from '../person'
@@ -154,47 +155,56 @@ export function ImportPanel() {
   const positions = usePositions().data?.instruments ?? []
   const invalidate = useInvalidate()
   const aiStatus = useQuery({ queryKey: ['ai', 'status'], queryFn: aiApi.status, staleTime: 10_000 })
-  const [file, setFile] = useState<File | null>(null)
+  const { jobId } = useJobParam()
+  const job = useJob<DepotPreview>(jobId)
+  const finish = useFinishJob()
+  const start = useStartJob('depot')
   const [mapping, setMapping] = useState<Record<string, number>>({})
-  const [preview, setPreview] = useState<DepotPreview | null>(null)
   const [off, setOff] = useState<Set<string>>(new Set())
   const [done, setDone] = useState<string | null>(null)
 
-  const previewMutation = useMutation({
-    mutationFn: (v: { file: File; map: Record<string, number> }) => aiApi.analyzeDepot(v.file, v.map, target?.id ?? 0),
-    onSuccess: (p) => {
-      setPreview(p)
-      // rows the checks could not confirm start unticked; the user decides
-      setOff(new Set(p.rows.filter((r) => r.check).map((r) => r.external_id)))
-    },
-  })
+  const base = job.data?.status === 'done' ? job.data.result : null
+  useEffect(() => {
+    // rows the checks could not confirm start unticked; the user decides
+    if (base) setOff(new Set(base.rows.filter((r) => r.check).map((r) => r.external_id)))
+  }, [base])
+
+  // positions the user assigned by hand apply to every row of that ISIN, without a new reading
+  const preview = useMemo(() => {
+    if (!base) return null
+    const rows = base.rows.map((r) => (r.isin && mapping[r.isin] ? { ...r, instrument_id: mapping[r.isin] } : r))
+    const open = new Map<string, { isin: string | null; name: string | null; count: number }>()
+    for (const r of rows) {
+      if (r.instrument_id !== null) continue
+      const key = r.isin ?? ''
+      const entry = open.get(key) ?? { isin: r.isin, name: r.name, count: 0 }
+      entry.count += 1
+      open.set(key, entry)
+    }
+    return {
+      ...base,
+      rows,
+      unmatched: [...open.values()],
+      new_count: rows.filter((r) => !r.duplicate && r.instrument_id !== null).length,
+    }
+  }, [base, mapping])
+
   const chosen = (preview?.rows ?? []).filter((r) => !off.has(r.external_id) && !r.duplicate && r.instrument_id !== null)
   const importMutation = useMutation({
     mutationFn: () => aiApi.importDepot(chosen, mapping, target?.id ?? 0, preview?.method ?? 'ai'),
     onSuccess: async (r) => {
       setDone(`${r.imported} Transaktionen importiert, ${r.duplicates} schon vorhanden, ${r.unmatched} ohne Position übersprungen.`)
-      setFile(null)
-      setPreview(null)
       setMapping({})
+      await finish(jobId)
       await invalidate()
     },
   })
-
-  function onFile(e: ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files?.[0]
-    if (!picked) return
-    setDone(null)
-    setFile(picked)
-    setMapping({})
-    previewMutation.mutate({ file: picked, map: {} })
-  }
 
   function assign(isin: string, instrumentId: number | null) {
     const next = { ...mapping }
     if (instrumentId === null) delete next[isin]
     else next[isin] = instrumentId
     setMapping(next)
-    if (file) previewMutation.mutate({ file, map: next })
   }
 
   const toggle = (id: string) =>
@@ -213,9 +223,15 @@ export function ImportPanel() {
           {selectedId === null && <span className="font-normal text-tinte-weich"> (Wähle oben eine Person, um für jemand anderen zu importieren.)</span>}
         </p>
       )}
+      {!jobId && (
       <label className="block text-sm">
         Datei vom Broker
-        <input type="file" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" onChange={onFile} className={`${input} cursor-pointer`} />
+        <input type="file" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" disabled={start.isPending}
+          onChange={(e) => {
+            const picked = e.target.files?.[0]
+            setDone(null)
+            if (picked) start.mutate({ file: picked, person_id: target?.id })
+          }} className={`${input} cursor-pointer`} />
         <span className="mt-1 block text-xs text-tinte-weich">
           CSV-Exporte und PDF-Abrechnungen beliebiger Broker. Das Transaktions-CSV von Trade Republic wird ohne KI gelesen; andere Layouts und PDFs liest die lokale KI,
           und jede Zahl wird gegen den Dokumenttext geprüft. Die Datei bleibt auf deinem Server und wird nicht gespeichert.
@@ -224,14 +240,25 @@ export function ImportPanel() {
           <span className="mt-1 block text-xs text-bake">KI-Server nicht erreichbar. Starte den Rechner für PDFs und unbekannte Layouts.</span>
         )}
       </label>
-      {previewMutation.isPending && <p className="text-sm text-tinte-weich">Die Datei wird gelesen. Mit lokaler KI kann das einige Minuten dauern.</p>}
-      <ErrorLine error={previewMutation.error ?? importMutation.error} />
+      )}
+      {start.isPending && <p className="text-sm text-tinte-weich">Die Datei wird hochgeladen.</p>}
+      <ErrorLine error={start.error ?? importMutation.error} />
+      {job.error && <p role="alert" className="text-sm font-medium text-bake">Das Ergebnis ist nicht mehr da (nach einem Neustart oder nach 24 Stunden). Lade die Datei noch einmal hoch.</p>}
+      {job.data && job.data.status !== 'done' && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{job.data.filename}</p>
+          <JobProgress job={job.data} />
+          <button type="button" onClick={() => finish(jobId)} className={secondary}>
+            {job.data.status === 'failed' ? 'Andere Datei wählen' : 'Abbrechen'}
+          </button>
+        </div>
+      )}
       {done && <p className="text-sm font-medium text-elbe-dunkel">{done}</p>}
 
-      {preview && file && (
+      {preview && job.data && (
         <div className="space-y-4">
           <p className="text-sm">
-            <strong>{file.name}</strong>: {preview.new_count} neue Transaktionen, {preview.duplicate_count} bereits importiert
+            <strong>{job.data.filename}</strong>: {preview.new_count} neue Transaktionen, {preview.duplicate_count} bereits importiert
             {preview.method === 'ai' && ', von der KI gelesen'}.
           </p>
 
@@ -318,10 +345,7 @@ export function ImportPanel() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setPreview(null)
-                setFile(null)
-              }}
+              onClick={() => finish(jobId)}
               className={secondary}
             >
               Verwerfen

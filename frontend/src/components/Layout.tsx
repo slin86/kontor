@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { AccountMenu } from './AccountMenu'
+import { JobNotices } from './JobNotices'
 import { PersonProvider, usePerson } from '../person'
 import { Pegel } from './Pegel'
 import { PersonSwitcher } from './PersonSwitcher'
@@ -85,6 +86,7 @@ export function Layout() {
       <PersonProvider>
         <Main />
       </PersonProvider>
+      <JobNotices />
     </div>
   )
 }

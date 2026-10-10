@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { aiApi, type Candidate } from '../aiApi'
+import { aiApi, type Analysis, type Candidate, type ContractAnalysis } from '../aiApi'
 import { cashflowApi, type Category, type Frequency } from '../cashflowApi'
 import { FREQUENCY_LABEL } from '../format'
+import { JobProgress, useFinishJob, useJob, useJobParam, useStartJob } from '../jobs'
 import { useMonth } from '../month'
 import { monthLabel } from '../monthUtils'
 import { usePerson } from '../person'
@@ -39,10 +40,14 @@ function ServerLine({ needsAi }: { needsAi: boolean }) {
 
 /** Reads a bank statement and proposes the payments that come back as items. */
 export function StatementImport({ categories, onDone, mode = 'statement' }: { categories: Category[]; onDone: () => void; mode?: ImportMode }) {
-  const contract = mode === 'contract'
   const qc = useQueryClient()
   const { current, selected } = useMonth()
   const { me, selectedId } = usePerson()
+  const { jobId } = useJobParam()
+  const job = useJob<Analysis | ContractAnalysis>(jobId)
+  const finish = useFinishJob()
+  const contract = job.data ? job.data.kind === 'contract' : mode === 'contract'
+  const start = useStartJob(contract ? 'contract' : 'statement')
   const [rows, setRows] = useState<Row[] | null>(null)
   const [from, setFrom] = useState(selected < current ? current : selected)
   const [done, setDone] = useState<string | null>(null)
@@ -51,27 +56,26 @@ export function StatementImport({ categories, onDone, mode = 'statement' }: { ca
   const label = (c: Category) => (c.parent_id ? `${byId.get(c.parent_id)?.name} › ${c.name}` : c.name)
 
   const [summary, setSummary] = useState<{ text: string; note: string | null; unrated: number } | null>(null)
-  const analyze = useMutation({
-    mutationFn: async (file: File) => {
-      if (contract) {
-        const a = await aiApi.analyzeContract(file)
-        return { candidates: a.candidates, text: `${a.candidates.length} regelmäßige Zahlungen im Dokument gefunden.`, note: a.ai.note, unrated: 0 }
-      }
-      const a = await aiApi.analyze(file)
-      const n = a.candidates.length
-      return {
-        candidates: a.candidates,
-        text: `${a.lines} Buchungen (${FORMAT_LABEL[a.format]}, ${a.period_from} bis ${a.period_to}) gelesen, ${n === 0 ? 'keine wiederkehrende Zahlung erkannt.' : `${n} wiederkehrende Zahlungen gefunden.`}`,
+  const result = job.data?.status === 'done' ? job.data : null
+  const resultId = result?.id
+  // the finished job fills the review table; rows the checks could not confirm start unticked
+  useEffect(() => {
+    if (!result?.result) return
+    const a = result.result
+    const n = a.candidates.length
+    if (result.kind === 'contract') {
+      setSummary({ text: `${n} regelmäßige Zahlungen im Dokument gefunden.`, note: a.ai.note, unrated: 0 })
+    } else {
+      const s = a as Analysis
+      setSummary({
+        text: `${s.lines} Buchungen (${FORMAT_LABEL[s.format]}, ${s.period_from} bis ${s.period_to}) gelesen, ${n === 0 ? 'keine wiederkehrende Zahlung erkannt.' : `${n} wiederkehrende Zahlungen gefunden.`}`,
         note: a.ai.note,
-        unrated: a.unrated,
-      }
-    },
-    onSuccess: (a) => {
-      // rows the checks could not confirm start unticked, so nothing unchecked slips in
-      setRows(a.candidates.map((c) => ({ ...c, on: c.existing_item_id === null && !c.check })))
-      setSummary({ text: a.text, note: a.note, unrated: a.unrated })
-    },
-  })
+        unrated: s.unrated,
+      })
+    }
+    setRows(a.candidates.map((c) => ({ ...c, on: c.existing_item_id === null && !c.check })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultId])
   const create = useMutation({
     mutationFn: async (selectedRows: Row[]) => {
       for (const r of selectedRows) {
@@ -89,8 +93,10 @@ export function StatementImport({ categories, onDone, mode = 'statement' }: { ca
     },
     onSuccess: async (n) => {
       await qc.invalidateQueries({ queryKey: ['cashflow'] })
-      setDone(`${n} ${n === 1 ? 'Posten' : 'Posten'} angelegt.`)
+      setDone(`${n} Posten angelegt.`)
       setRows(null)
+      setSummary(null)
+      await finish(jobId)
     },
   })
 
@@ -104,7 +110,14 @@ export function StatementImport({ categories, onDone, mode = 'statement' }: { ca
         <h3 id="kontoauszug" className="text-lg">
           {contract ? 'Aus Dokument anlegen' : 'Aus Kontoauszug anlegen'}
         </h3>
-        <button type="button" onClick={onDone} className={`${secondary} ml-auto`}>
+        <button
+          type="button"
+          onClick={async () => {
+            await finish(jobId)
+            onDone()
+          }}
+          className={`${secondary} ml-auto`}
+        >
           Schließen
         </button>
       </div>
@@ -114,27 +127,43 @@ export function StatementImport({ categories, onDone, mode = 'statement' }: { ca
           : 'Lade einen Kontoauszug als CSV, CAMT, MT940 oder PDF hoch, am besten mehrere Monate. Kontor sucht Zahlungen, die regelmäßig wiederkehren, und schlägt sie als Posten vor. Auch unbekannte CSV-Layouts werden mit der lokalen KI gelesen.'}{' '}
         Die Datei wird nicht gespeichert und geht nie an einen Online-Dienst.
       </p>
-      <ServerLine needsAi={contract} />
+      {!jobId && <ServerLine needsAi={contract} />}
 
-      <label className="block text-sm">
-        Datei
-        <input
-          type="file"
-          accept={contract ? '.pdf,.txt' : '.csv,.xml,.sta,.mt940,.txt,.pdf'}
-          disabled={analyze.isPending}
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            setDone(null)
-            if (file) analyze.mutate(file)
-          }}
-          className={input}
-        />
-      </label>
-      {analyze.isPending && <p className="text-sm text-tinte-weich">Die Datei wird gelesen. Mit lokaler KI kann das einige Minuten dauern.</p>}
-      {analyze.error && (
+      {!jobId && (
+        <label className="block text-sm">
+          Datei
+          <input
+            type="file"
+            accept={contract ? '.pdf,.txt' : '.csv,.xml,.sta,.mt940,.txt,.pdf'}
+            disabled={start.isPending}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              setDone(null)
+              if (file) start.mutate({ file })
+            }}
+            className={input}
+          />
+        </label>
+      )}
+      {start.isPending && <p className="text-sm text-tinte-weich">Die Datei wird hochgeladen.</p>}
+      {start.error && (
         <p role="alert" className="text-sm font-medium text-bake">
-          {analyze.error instanceof Error ? analyze.error.message : 'Das hat nicht geklappt.'}
+          {start.error instanceof Error ? start.error.message : 'Das hat nicht geklappt.'}
         </p>
+      )}
+      {job.error && (
+        <p role="alert" className="text-sm font-medium text-bake">
+          Das Ergebnis ist nicht mehr da (nach einem Neustart oder nach 24 Stunden). Lade die Datei noch einmal hoch.
+        </p>
+      )}
+      {job.data && job.data.status !== 'done' && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{job.data.filename}</p>
+          <JobProgress job={job.data} />
+          <button type="button" onClick={() => finish(jobId)} className={secondary}>
+            {job.data.status === 'failed' ? 'Andere Datei wählen' : 'Abbrechen'}
+          </button>
+        </div>
       )}
       {done && <p className="text-sm font-medium text-elbe-dunkel">{done}</p>}
 
