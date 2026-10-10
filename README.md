@@ -143,6 +143,30 @@ Not covered yet: automatic data updates, tracking difference, live prices.
 
 Not covered yet: live prices, importing month-end values from a statement.
 
+## AI helper (optional)
+
+Everything below also works without AI; the helper only saves typing.
+
+- **Items from a bank statement** (Cashflow, Posten, *Aus Kontoauszug*): upload a CSV, CAMT.053, MT940 or a
+  PDF with a text layer, ideally several months. Kontor finds payments that come back in a fixed rhythm
+  (same payee, similar amount, monthly, quarterly, semiannual or yearly) by plain arithmetic, not by the
+  model. The AI then proposes a category from your own category tree and judges single payments ("a gym
+  fee probably comes back, a petrol station does not"). You review and edit every row before anything
+  is created. Payees that match an existing item are not preselected. The file is not stored.
+- **Name to category** (new item form): after typing a name the AI proposes a category and whether and how
+  often it recurs. Names that already exist as items are answered from your own data first.
+- **PDF statements** are read by the local model (text extraction, then the model lists the bookings).
+  Scans without a text layer are refused; use the bank's CSV or CAMT export instead.
+
+**Where the model runs.** Statements, and anything derived from them, only go to a *local* server that
+speaks the OpenAI API: Ollama (`OLLAMA_HOST=0.0.0.0` so the cluster can reach it) or LM Studio (serve on
+the local network). Set `KONTOR_AI_LOCAL_URL` (e.g. `http://gaming-pc.home.lan:11434`) and
+`KONTOR_AI_LOCAL_MODEL` in `base/configmap.yaml`. If the machine is off, Kontor says so and everything
+keeps working by hand; start the machine and retry. Text models handle categories and names; reading PDFs
+needs a model that follows JSON schemas well, so check the preview. An optional `KONTOR_AI_CLOUD_API_KEY`
+(Infisical) lets a cloud model answer the *single item name* suggestion when the local server is off. It
+never receives statements or payees from statements.
+
 ## Tax estimate
 
 The depot projection shows a second line, **after tax if everything were sold in that month**. It is an
@@ -300,7 +324,7 @@ deploy/argocd/application.yaml   Argo CD Application (auto-sync, prune, self-hea
 |---|---|
 | `KONTOR_DATABASE_URL` | `postgresql+psycopg://kontor:<password>@<postgres service>.<namespace>.svc.cluster.local:5432/kontor` (percent-encode special characters of the password, an at sign becomes `%40`) |
 
-Nothing else is required. Non-secret settings (cookie flag, time zone, whether new households may be created)
+Optional: `KONTOR_AI_CLOUD_API_KEY` (see the AI helper section). Non-secret settings (cookie flag, time zone, whether new households may be created)
 are in `base/configmap.yaml`. The project slug and path are the first thing to change if you keep Kontor
 in a different Infisical project.
 

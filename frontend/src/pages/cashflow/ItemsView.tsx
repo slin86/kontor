@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { cashflowApi, type AuditEntry, type Item } from '../../cashflowApi'
 import { ItemEditor, NewItemForm } from '../../components/ItemForms'
+import { StatementImport } from '../../components/StatementImport'
 import { euro, FREQUENCY_LABEL } from '../../format'
 import { useMonth } from '../../month'
 import { addMonths, monthLabel } from '../../monthUtils'
@@ -57,6 +58,7 @@ export function ItemsView() {
   const { selectedId, people } = usePerson()
   const locked = isLocked(selected)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [editing, setEditing] = useState<number | null>(null)
 
   const categories = useQuery({ queryKey: ['cashflow', 'categories'], queryFn: cashflowApi.categories })
@@ -130,12 +132,22 @@ export function ItemsView() {
           <Link to="/kategorien" className="ml-auto text-sm font-medium text-elbe-dunkel hover:underline">
             Kategorien verwalten
           </Link>
+          {!importing && (
+            <button type="button" onClick={() => setImporting(true)} className="border border-tinte/40 px-4 py-2 text-sm font-medium hover:border-tinte">
+              Aus Kontoauszug
+            </button>
+          )}
           {!adding && (
             <button type="button" onClick={() => setAdding(true)} className="bg-tinte px-4 py-2 text-sm font-medium text-karte hover:bg-elbe-dunkel">
               Posten hinzufügen
             </button>
           )}
         </div>
+        {importing && categories.data && (
+          <div className="mb-8">
+            <StatementImport categories={categories.data} onDone={() => setImporting(false)} />
+          </div>
+        )}
         {adding && categories.data && (
           <div className="mb-8">
             <NewItemForm categories={categories.data} onDone={() => setAdding(false)} />
