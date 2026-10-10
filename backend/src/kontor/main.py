@@ -25,6 +25,9 @@ from kontor.api import (
 from kontor.api import (
     documents as documents_api,
 )
+from kontor.api import (
+    jobs as jobs_api,
+)
 from kontor.core.config import get_settings
 
 
@@ -57,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(wealth.router)
     app.include_router(household.router)
     app.include_router(ai_api.router)
+    app.include_router(jobs_api.router)
     app.include_router(documents_api.router)
     return app
 

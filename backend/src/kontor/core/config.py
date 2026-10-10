@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     ai_local_url: str = ""  # Ollama http://pc.home.lan:11434 or LM Studio http://pc.home.lan:1234
     ai_local_model: str = ""  # empty: use the first model the server lists
     ai_local_timeout_seconds: int = 180
+    ai_wait_minutes: int = 10  # how long a background job waits for a sleeping AI machine
+    ai_retry_seconds: int = 15
     ai_cloud_api_key: str = ""
     ai_cloud_model: str = "claude-haiku-4-5"
 
