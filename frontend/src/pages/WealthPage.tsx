@@ -143,7 +143,7 @@ export function WealthPage() {
       </section>
 
       {data && view && !empty && (
-        <div className="grid gap-x-12 gap-y-10 lg:grid-cols-[22rem_1fr]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-x-12 gap-y-10 lg:grid-cols-[22rem_minmax(0,1fr)]">
           <section aria-labelledby="zusammensetzung">
             <h2 id="zusammensetzung" className="mb-4 text-xl">
               Das besitzt du heute
@@ -155,21 +155,21 @@ export function WealthPage() {
               Stationen
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[30rem] text-left text-sm">
+              <table className="w-full text-left text-xs sm:text-sm">
                 <thead className="text-tinte-weich">
                   <tr>
-                    <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
-                    <th className="py-2 pr-4 text-right font-medium">Vermögenswerte</th>
-                    <th className="py-2 pr-4 text-right font-medium">Schulden</th>
+                    <th className="py-2 pr-2 sm:pr-4 font-medium">Zeitpunkt</th>
+                    <th className="py-2 pr-2 sm:pr-4 text-right font-medium">Vermögenswerte</th>
+                    <th className="py-2 pr-2 sm:pr-4 text-right font-medium">Schulden</th>
                     <th className="py-2 text-right font-medium">Netto</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-tinte/15">
                   {view.marks.map(({ years: y, point }) => (
                     <tr key={y}>
-                      <td className="py-2 pr-4">{y === 0 ? `Heute (${monthLabel(point.month)})` : `In ${y} Jahren (${monthLabel(point.month)})`}</td>
-                      <td className="zahl py-2 pr-4 text-right">{euro(point.assets)}</td>
-                      <td className="zahl py-2 pr-4 text-right">{point.debts > 0 ? euro(point.debts) : '–'}</td>
+                      <td className="py-2 pr-2 sm:pr-4">{y === 0 ? `Heute (${monthLabel(point.month)})` : `In ${y} Jahren (${monthLabel(point.month)})`}</td>
+                      <td className="zahl py-2 pr-2 sm:pr-4 text-right">{euro(point.assets)}</td>
+                      <td className="zahl py-2 pr-2 sm:pr-4 text-right">{point.debts > 0 ? euro(point.debts) : '–'}</td>
                       <td className={`zahl py-2 text-right font-medium ${net(point) < 0 ? 'text-bake' : ''}`}>{euro(net(point))}</td>
                     </tr>
                   ))}

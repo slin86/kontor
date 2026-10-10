@@ -81,3 +81,30 @@ h3 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Touch screens: many actions are small text links ("Bearbeiten", "Entfernen"). Instead of changing
+ * their layout, an invisible pseudo-element grows the tappable area to roughly 44px.
+ * In the components layer so a utility like `absolute` still wins.
+ */
+@layer components {
+  @media (pointer: coarse) {
+    main button:not(:disabled),
+    main a,
+    main summary {
+      position: relative;
+    }
+    main button::after,
+    main a::after,
+    main summary::after {
+      content: '';
+      position: absolute;
+      inset: -0.65rem -0.35rem;
+    }
+    main input[type='checkbox'],
+    main input[type='radio'] {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+}

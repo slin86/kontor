@@ -71,7 +71,7 @@ function Projection() {
         {selected && selectedId !== null ? `Wie sich das Depot von ${selected.name} entwickelt` : 'Wie sich dein Depot entwickelt'}
       </h2>
       <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3 text-sm">
-        <label>
+        <label className="flex flex-col">
           Zeitraum
           <select value={years} onChange={(e) => setYears(Number(e.target.value))} className={`${input} !mt-1 w-auto`}>
             {YEAR_CHOICES.map((y) => (
@@ -81,7 +81,7 @@ function Projection() {
             ))}
           </select>
         </label>
-        <label>
+        <label className="flex flex-col">
           Inflation pro Jahr (%)
           <input
             defaultValue={String(inflation).replace('.', ',')}

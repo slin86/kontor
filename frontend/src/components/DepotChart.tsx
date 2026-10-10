@@ -23,7 +23,6 @@ export function DepotChart({
   today: string
 }) {
   const option = useMemo(() => {
-    const narrow = typeof window !== 'undefined' && window.innerWidth < 640
     const labels = base.points.map((p) => short(p.month))
     const todayLabel = short(today)
     const positions = base.instruments.map((ins, n) => ({
@@ -51,7 +50,7 @@ export function DepotChart({
       line('Nach Steuern bei Verkauf', base.points.map((p) => p.net_value), '#c07a4a', 'solid', 2),
     ]
     return {
-      grid: { left: 72, right: 16, top: narrow ? 84 : 40, bottom: 28 },
+      grid: { left: 72, right: 16, top: 40, bottom: 28 },
       legend: { top: 0, left: 0, textStyle: { color: '#4b5d6e' } },
       tooltip: { trigger: 'axis', valueFormatter: (v: number) => euro(v) },
       xAxis: {

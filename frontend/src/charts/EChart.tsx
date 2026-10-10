@@ -3,7 +3,7 @@ import { GridComponent, LegendComponent, MarkLineComponent, TitleComponent, Tool
 import * as echarts from 'echarts/core'
 import type { EChartsCoreOption } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useTheme } from '../theme'
 
@@ -50,17 +50,39 @@ function darkOption(option: EChartsCoreOption): EChartsCoreOption {
   }
 }
 
+type Obj = Record<string, unknown>
+
+/** Phone-width tweaks: a legend that scrolls instead of wrapping into the plot, tighter margins, no overlapping ticks. */
+function compact(option: EChartsCoreOption): EChartsCoreOption {
+  const o = { ...(option as Obj) }
+  if (o.legend && !Array.isArray(o.legend)) o.legend = { ...(o.legend as Obj), type: 'scroll' }
+  if (o.grid && !Array.isArray(o.grid)) {
+    const g = o.grid as { left?: number; right?: number }
+    o.grid = { ...g, left: Math.min(g.left ?? 56, 60), right: Math.min(g.right ?? 12, 12) }
+  }
+  const fixAxis = (axis: unknown) => {
+    const a = axis as Obj
+    return { ...a, axisLabel: { ...(a.axisLabel as Obj | undefined), hideOverlap: true } }
+  }
+  if (o.xAxis) o.xAxis = Array.isArray(o.xAxis) ? o.xAxis.map(fixAxis) : fixAxis(o.xAxis)
+  return o as EChartsCoreOption
+}
+
 /** Minimal ECharts wrapper: creates the chart once, updates options, resizes with its container. */
 export function EChart({ option, height, label }: { option: EChartsCoreOption; height: number; label: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const chart = useRef<echarts.ECharts | null>(null)
+  const [narrow, setNarrow] = useState(false)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const instance = echarts.init(el)
     chart.current = instance
-    const observer = new ResizeObserver(() => instance.resize())
+    const observer = new ResizeObserver(() => {
+      setNarrow(el.clientWidth < 560)
+      instance.resize()
+    })
     observer.observe(el)
     return () => {
       observer.disconnect()
@@ -70,7 +92,10 @@ export function EChart({ option, height, label }: { option: EChartsCoreOption; h
   }, [])
 
   const { dark } = useTheme()
-  const themed = useMemo(() => (dark ? darkOption(option) : option), [dark, option])
+  const themed = useMemo(() => {
+    const sized = narrow ? compact(option) : option
+    return dark ? darkOption(sized) : sized
+  }, [dark, option, narrow])
   useEffect(() => {
     chart.current?.setOption(themed, true)
   }, [themed])

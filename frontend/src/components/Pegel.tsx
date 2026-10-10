@@ -45,7 +45,7 @@ export function Pegel() {
                 aria-label={`${MONTH_NAMES[mm - 1]} ${y}${locked ? ', abgeschlossen' : ''}`}
                 onClick={() => setSelected(m)}
                 className={[
-                  'relative h-9 w-11 border-l text-xs transition-colors',
+                  'relative h-11 w-12 border-l text-xs sm:h-9 sm:w-11 transition-colors',
                   mm === 1 ? 'border-tinte/50' : 'border-tinte/15',
                   isSelected
                     ? 'bg-tinte font-semibold text-karte'

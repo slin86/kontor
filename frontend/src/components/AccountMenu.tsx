@@ -10,7 +10,7 @@ import { WEB_VERSION } from '../version'
 
 const THEME_LABEL = { auto: 'Automatisch', light: 'Hell', dark: 'Dunkel' } as const
 
-const item = 'block w-full px-4 py-2 text-left text-sm hover:bg-tinte/10 focus-visible:bg-tinte/10'
+const item = 'block w-full px-4 py-3 text-left text-sm sm:py-2 hover:bg-tinte/10 focus-visible:bg-tinte/10'
 
 /** The user's name in the header; hovering or focusing it opens the personal menu. */
 export function AccountMenu() {
@@ -51,7 +51,7 @@ export function AccountMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="font-medium text-tinte hover:text-elbe-dunkel"
+        className="-mr-2 px-2 py-2 font-medium text-tinte hover:text-elbe-dunkel"
       >
         {me?.user.display_name} <span aria-hidden>▾</span>
       </button>
