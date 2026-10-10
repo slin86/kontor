@@ -10,5 +10,6 @@ data:
   KONTOR_CORS_ORIGINS: "[]"
   # AI helper, off while empty. A local OpenAI-compatible server (Ollama, LM Studio) reads statements and
   # suggests categories; set the host of the machine that runs it, for example:
-  # KONTOR_AI_LOCAL_URL: "http://gaming-pc.home.lan:11434"
+  # Ollama: "http://gaming-pc.home.lan:11434", LM Studio: "http://gaming-pc.home.lan:1234"
+  # KONTOR_AI_LOCAL_URL: "http://gaming-pc.home.lan:1234"
   # KONTOR_AI_LOCAL_MODEL: "qwen2.5:14b"

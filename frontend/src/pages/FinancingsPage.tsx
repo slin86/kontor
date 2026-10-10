@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePerson } from '../person'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
+import { type FinancingDraft } from '../aiApi'
+import { JobProgress, useFinishJob, useJob, useJobParam, useStartJob } from '../jobs'
 import { ConfirmDelete } from '../components/ConfirmDelete'
 import { CorrectionForm, eventLabel, EventForm, NewFinancingForm } from '../components/FinancingForms'
 import { OutlookView } from '../components/OutlookView'
@@ -248,6 +250,21 @@ export function FinancingsPage() {
     queryFn: () => financingApi.list(selectedId),
   })
   const [adding, setAdding] = useState(false)
+  const [reading, setReading] = useState(false)
+  const [draft, setDraft] = useState<FinancingDraft | undefined>(undefined)
+  const { jobId } = useJobParam()
+  const job = useJob<FinancingDraft>(jobId)
+  const finish = useFinishJob()
+  const readContract = useStartJob('financing')
+  const jobDone = job.data?.status === 'done' ? job.data : null
+  // a finished job fills the form; the job is dropped when the form is saved or closed
+  useEffect(() => {
+    if (jobDone?.result) {
+      setDraft(jobDone.result)
+      setReading(false)
+      setAdding(true)
+    }
+  }, [jobDone])
   const [open, setOpen] = useState<number | null>(null)
 
   return (
@@ -260,22 +277,86 @@ export function FinancingsPage() {
           <h2 id="vertraege" className="text-xl">
             Kredite, Rahmenkredite und Bausparverträge
           </h2>
-          {!adding && (
-            <button type="button" onClick={() => setAdding(true)} className={`ml-auto text-sm ${primary}`}>
-              Finanzierung hinzufügen
-            </button>
+          {!adding && !reading && !jobId && (
+            <div className="ml-auto flex gap-2 text-sm">
+              <button type="button" onClick={() => setReading(true)} className="border border-tinte/40 px-4 py-2 font-medium hover:border-tinte">
+                Aus Vertrag
+              </button>
+              <button type="button" onClick={() => setAdding(true)} className={primary}>
+                Finanzierung hinzufügen
+              </button>
+            </div>
           )}
         </div>
+
+        {(reading || jobId) && !adding && (
+          <div className="mb-8 max-w-2xl space-y-3 border-t-4 border-tinte pt-5">
+            <h3 className="text-lg">Aus Vertrag anlegen</h3>
+            <p className="text-sm text-tinte-weich">
+              Lade einen Darlehens-, Bauspar- oder Rahmenkreditvertrag als PDF oder Textdatei hoch. Die lokale KI liest Beträge, Zinsen und Termine und füllt das
+              Formular vor; Zahlen, die nicht im Text stehen, werden markiert. Die Datei wird nicht gespeichert und geht nie an einen Online-Dienst.
+            </p>
+            {!jobId && (
+              <label className="block text-sm">
+                Datei
+                <input
+                  type="file"
+                  accept=".pdf,.txt"
+                  disabled={readContract.isPending}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) readContract.mutate({ file })
+                  }}
+                  className={input}
+                />
+              </label>
+            )}
+            {readContract.error && (
+              <p role="alert" className="text-sm font-medium text-bake">
+                {readContract.error instanceof Error ? readContract.error.message : 'Das hat nicht geklappt.'}
+              </p>
+            )}
+            {job.error && <p role="alert" className="text-sm font-medium text-bake">Das Ergebnis ist nicht mehr da. Lade den Vertrag noch einmal hoch.</p>}
+            {job.data && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{job.data.filename}</p>
+                <JobProgress job={job.data} />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setReading(false)
+                void finish(jobId)
+              }}
+              className="text-sm font-medium text-elbe-dunkel hover:underline"
+            >
+              Abbrechen
+            </button>
+          </div>
+        )}
 
         {adding && (
           <div className="mb-8">
             <NewFinancingForm
+              key={draft ? 'draft' : 'blank'}
+              draft={draft}
               onDone={(created) => {
                 setAdding(false)
+                setDraft(undefined)
+                void finish(jobId)
                 setOpen(created.id)
               }}
             />
-            <button type="button" onClick={() => setAdding(false)} className="mt-2 text-sm font-medium text-elbe-dunkel hover:underline">
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(false)
+                setDraft(undefined)
+                void finish(jobId)
+              }}
+              className="mt-2 text-sm font-medium text-elbe-dunkel hover:underline"
+            >
               Abbrechen
             </button>
           </div>

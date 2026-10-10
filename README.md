@@ -157,15 +157,44 @@ Everything below also works without AI; the helper only saves typing.
   often it recurs. Names that already exist as items are answered from your own data first.
 - **PDF statements** are read by the local model (text extraction, then the model lists the bookings).
   Scans without a text layer are refused; use the bank's CSV or CAMT export instead.
+- **Any bank, any CSV.** Known German and English headers are read without AI. For a layout nobody has
+  seen, the AI only tells Kontor which column is the date, amount (or debit/credit), payee and purpose,
+  from the first rows; the file itself is then parsed by plain code.
+- **Contracts and invoices** (Cashflow, Posten, *Aus Dokument*): insurance, energy, internet, mobile, rent,
+  Kita, club or subscription documents as PDF or text. The AI reads amount and payment rhythm and proposes
+  items; you review them like statement rows.
+- **Loan, building savings and credit line contracts** (Finanzierungen, *Aus Vertrag*): the AI fills the
+  form for the matching type (loan, 0 % financing, credit line, Bausparvertrag, Bausparfinanzierung).
+  Nothing is saved until you submit the form.
+- **Broker documents** (Depot, Plan & Ist, *Import aus dem Broker*): Trade Republic's transaction CSV is read
+  without AI; other CSV layouts and PDF statements go through the AI. Rows are matched to positions by ISIN,
+  unknown ISINs can be assigned by hand, and rows already imported are skipped.
+- **Checks against hallucinations.** Every amount, share count, date and ISIN the model returns is compared
+  with the document text (several number spellings, ISIN check digit). What is not in the text is marked
+  "Bitte prüfen" and starts unselected. Every kind of document is first classified; a document that clearly
+  belongs elsewhere is refused with a pointer to the right page ("Das ist ein Kontoauszug ...").
+
+**Background jobs.** An upload does not block the page. Kontor starts a job, you keep working, and a notice in the
+corner of every page says when the document is read ("Ergebnis ansehen"). Jobs run one at a time on the local
+server. If the AI machine is off or still loading its model, the job waits (`KONTOR_AI_WAIT_MINUTES`, default 10,
+retrying every `KONTOR_AI_RETRY_SECONDS`, default 15) and continues by itself, so a machine that wakes up on
+demand works. Results stay in the API's memory for up to 24 hours or until you dismiss them; nothing is written
+to the database and the file is dropped when the job ends. A restart of the API loses open jobs; upload again.
 
 **Where the model runs.** Statements, and anything derived from them, only go to a *local* server that
 speaks the OpenAI API: Ollama (`OLLAMA_HOST=0.0.0.0` so the cluster can reach it) or LM Studio (serve on
-the local network). Set `KONTOR_AI_LOCAL_URL` (e.g. `http://gaming-pc.home.lan:11434`) and
-`KONTOR_AI_LOCAL_MODEL` in `base/configmap.yaml`. If the machine is off, Kontor says so and everything
+the local network, Developer tab). Set `KONTOR_AI_LOCAL_URL` in `base/configmap.yaml`: Ollama listens on
+port 11434 (`http://gaming-pc.home.lan:11434`), LM Studio on 1234 (`http://gaming-pc.home.lan:1234`); a
+trailing `/v1` is accepted. `KONTOR_AI_LOCAL_MODEL` is optional: when empty, Kontor uses the first model the
+server lists, which for LM Studio is the one you have loaded. If the machine is off, Kontor says so and everything
 keeps working by hand; start the machine and retry. Text models handle categories and names; reading PDFs
 needs a model that follows JSON schemas well, so check the preview. An optional `KONTOR_AI_CLOUD_API_KEY`
 (Infisical) lets a cloud model answer the *single item name* suggestion when the local server is off. It
 never receives statements or payees from statements.
+
+Ollama truncates prompts at its default context of 4096 tokens. Kontor sends small chunks (about 6,000
+characters), but set `OLLAMA_CONTEXT_LENGTH=16384` (or the context in LM Studio) for long PDFs. Scanned
+PDFs need OCR and are not supported yet.
 
 ## Tax estimate
 

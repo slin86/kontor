@@ -75,3 +75,27 @@ def test_status_reports_an_unreachable_server(monkeypatch: pytest.MonkeyPatch) -
     s = ai.status()
     assert s.local_configured and not s.local_reachable and s.local_model == "qwen"
     assert json.dumps(s.local_model)
+
+
+def test_lm_studio_style_url_and_model_from_the_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A URL ending in /v1 works, and an empty model name falls back to what the server lists."""
+    monkeypatch.setenv("KONTOR_AI_LOCAL_URL", "http://pc.lan:1234/v1")
+    monkeypatch.setenv("KONTOR_AI_LOCAL_MODEL", "")
+    get_settings.cache_clear()
+    seen: dict[str, Any] = {}
+
+    def get(url: str, **kw: Any) -> httpx.Response:
+        seen["get"] = url
+        return _response({"data": [{"id": "qwen2.5-14b-instruct"}]}, url)
+
+    def post(url: str, **kw: Any) -> httpx.Response:
+        seen.update(url=url, model=kw["json"]["model"])
+        return _response({"choices": [{"message": {"content": '{"x": 1}'}}]})
+
+    monkeypatch.setattr(httpx, "get", get)
+    monkeypatch.setattr(httpx, "post", post)
+    assert ai.complete_json("s", "u", SCHEMA).data == {"x": 1}
+    assert seen["url"] == "http://pc.lan:1234/v1/chat/completions"
+    assert seen["get"] == "http://pc.lan:1234/v1/models"
+    assert seen["model"] == "qwen2.5-14b-instruct"
+    assert ai.status().local_model == "qwen2.5-14b-instruct"

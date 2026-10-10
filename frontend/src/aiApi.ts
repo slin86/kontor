@@ -26,7 +26,8 @@ export interface Candidate {
   occurrences: number
   first: string
   last: string
-  source: 'pattern' | 'ai'
+  source: 'pattern' | 'ai' | 'document'
+  check: string | null
   existing_item_id: number | null
   existing_item_name: string | null
 }
@@ -39,6 +40,59 @@ export interface Analysis {
   candidates: Candidate[]
   unrated: number
   ai: { used: boolean; note: string | null }
+}
+
+export interface ContractAnalysis {
+  candidates: Candidate[]
+  ai: { used: boolean; note: string | null }
+}
+
+export type FinancingFormKind = 'loan' | 'zero' | 'credit_line' | 'building_savings' | 'prefinanced'
+
+export interface FinancingDraft {
+  form_kind: FinancingFormKind
+  fields: Record<string, string>
+  unverified: string[]
+  missing_note: string | null
+}
+
+export interface DepotRow {
+  day: string
+  kind: 'buy' | 'sell' | 'dividend'
+  amount: number
+  fee: number
+  shares: number | null
+  isin: string | null
+  name: string | null
+  external_id: string
+  instrument_id: number | null
+  duplicate: boolean
+  check: string | null
+}
+
+export interface DepotPreview {
+  rows: DepotRow[]
+  unmatched: { isin: string | null; name: string | null; count: number }[]
+  skipped: number
+  method: 'csv' | 'ai'
+  new_count: number
+  duplicate_count: number
+}
+
+export type JobKind = 'statement' | 'contract' | 'financing' | 'depot'
+
+export interface Job {
+  id: string
+  kind: JobKind
+  filename: string
+  status: 'queued' | 'running' | 'waiting' | 'done' | 'failed'
+  error: string | null
+  created_at: string
+  finished_at: string | null
+}
+
+export interface JobDetail<T = unknown> extends Job {
+  result: T | null
 }
 
 /** The file as base64, in chunks so a few MB do not blow the call stack. */
@@ -54,4 +108,28 @@ export const aiApi = {
   suggest: (json: { name: string; income?: boolean | null }) => api<Suggestion>('/ai/suggest', { method: 'POST', json }),
   analyze: async (file: File) =>
     api<Analysis>('/ai/statements/analyze', { method: 'POST', json: { filename: file.name, content_base64: await toBase64(file) } }),
+  jobs: () => api<Job[]>('/ai/jobs'),
+  job: (id: string) => api<JobDetail>(`/ai/jobs/${id}`),
+  startJob: async (kind: JobKind, file: File, extra: { mapping?: Record<string, number>; person_id?: number } = {}) =>
+    api<Job>('/ai/jobs', { method: 'POST', json: { kind, filename: file.name, content_base64: await toBase64(file), ...extra } }),
+  dismissJob: (id: string) => api<void>(`/ai/jobs/${id}`, { method: 'DELETE' }),
+  analyzeContract: async (file: File) =>
+    api<ContractAnalysis>('/ai/contracts/analyze', { method: 'POST', json: { filename: file.name, content_base64: await toBase64(file) } }),
+  analyzeFinancing: async (file: File) =>
+    api<FinancingDraft>('/ai/financings/analyze', { method: 'POST', json: { filename: file.name, content_base64: await toBase64(file) } }),
+  analyzeDepot: async (file: File, mapping: Record<string, number>, person_id: number) =>
+    api<DepotPreview>('/ai/depot/analyze', {
+      method: 'POST',
+      json: { filename: file.name, content_base64: await toBase64(file), mapping, person_id },
+    }),
+  importDepot: (rows: DepotRow[], mapping: Record<string, number>, person_id: number, method: 'csv' | 'ai') =>
+    api<{ imported: number; duplicates: number; unmatched: number }>('/ai/depot/import', {
+      method: 'POST',
+      json: {
+        rows: rows.map(({ day, kind, amount, fee, shares, isin, name, external_id }) => ({ day, kind, amount, fee, shares, isin, name, external_id })),
+        mapping,
+        person_id,
+        source: method,
+      },
+    }),
 }
