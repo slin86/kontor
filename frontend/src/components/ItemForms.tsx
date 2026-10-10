@@ -1,6 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 
+import { aiApi } from '../aiApi'
 import { cashflowApi, type Category, type Frequency, type Item } from '../cashflowApi'
 import { FREQUENCY_LABEL } from '../format'
 import { useMonth } from '../month'
@@ -29,11 +30,11 @@ function ErrorLine({ error }: { error: unknown }) {
   )
 }
 
-function FrequencySelect({ defaultValue, onChange }: { defaultValue?: Frequency; onChange?: (f: Frequency) => void }) {
+function FrequencySelect({ defaultValue, value, onChange }: { defaultValue?: Frequency; value?: Frequency; onChange?: (f: Frequency) => void }) {
   return (
     <select
       name="frequency"
-      defaultValue={defaultValue ?? 'monthly'}
+      {...(value !== undefined ? { value } : { defaultValue: defaultValue ?? 'monthly' })}
       onChange={onChange && ((e) => onChange(e.target.value as Frequency))}
       className={input}
     >
@@ -73,6 +74,24 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
   const [transfer, setTransfer] = useState(false)
   const [frequency, setFrequency] = useState<Frequency>('monthly')
   const [spread, setSpread] = useState(true)
+  const [categoryId, setCategoryId] = useState('')
+  const [hint, setHint] = useState<string | null>(null)
+  const chosenByUser = useRef(false)
+  const status = useQuery({ queryKey: ['ai', 'status'], queryFn: aiApi.status, staleTime: 10_000 })
+  const aiOn = !!status.data && (status.data.local_configured || status.data.cloud_configured)
+  const suggest = useMutation({
+    mutationFn: aiApi.suggest,
+    onSuccess: (s) => {
+      if (s.source === 'none') return
+      if (s.category_id !== null && !chosenByUser.current) setCategoryId(String(s.category_id))
+      if (s.recurring && s.frequency) setFrequency(s.frequency)
+      const parts: string[] = []
+      if (s.category_id !== null) parts.push('Kategorie vorgeschlagen')
+      if (s.recurring === false) parts.push('wirkt wie eine einmalige Zahlung')
+      if (s.recurring && s.frequency) parts.push(`kehrt ${FREQUENCY_LABEL[s.frequency]} wieder`)
+      setHint(parts.length ? `${parts.join(', ')}${s.reason ? `: ${s.reason}` : ''}` : null)
+    },
+  })
   const mutation = useCashflowMutation(cashflowApi.createItem, onDone)
   const others = people.filter((p) => p.id !== owner)
   const byId = new Map(categories.map((c) => [c.id, c]))
@@ -98,7 +117,18 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
     <form onSubmit={submit} className="grid gap-4 border-t-4 border-tinte pt-5 sm:grid-cols-2 lg:grid-cols-3">
       <label className="block text-sm">
         Bezeichnung
-        <input name="name" required maxLength={120} className={input} />
+        <input
+          name="name"
+          required
+          maxLength={120}
+          className={input}
+          onBlur={(e) => {
+            const name = e.target.value.trim()
+            if (aiOn && name.length >= 2 && !transfer) suggest.mutate({ name })
+          }}
+        />
+        {suggest.isPending && <span className="mt-1 block text-xs text-tinte-weich">KI überlegt …</span>}
+        {hint && !suggest.isPending && <span className="mt-1 block text-xs text-tinte-weich">KI: {hint}</span>}
       </label>
       {people.length > 1 && (
         <label className="block text-sm">
@@ -132,7 +162,16 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
       ) : (
       <label className="block text-sm">
         Kategorie
-        <select name="category_id" required className={input} defaultValue="">
+        <select
+          name="category_id"
+          required
+          className={input}
+          value={categoryId}
+          onChange={(e) => {
+            chosenByUser.current = true
+            setCategoryId(e.target.value)
+          }}
+        >
           <option value="" disabled>
             Bitte wählen
           </option>
@@ -156,7 +195,7 @@ export function NewItemForm({ categories, onDone }: { categories: Category[]; on
       </label>
       <label className="block text-sm">
         Zahlweise
-        <FrequencySelect onChange={setFrequency} />
+        <FrequencySelect value={frequency} onChange={setFrequency} />
       </label>
       <label className="block text-sm">
         {frequency === 'monthly' ? 'Gilt ab' : 'Erste Zahlung im'}

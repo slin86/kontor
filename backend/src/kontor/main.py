@@ -19,6 +19,9 @@ from kontor.api import (
     tax,
     wealth,
 )
+from kontor.api import (
+    ai as ai_api,
+)
 from kontor.core.config import get_settings
 
 
@@ -50,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(properties.router)
     app.include_router(wealth.router)
     app.include_router(household.router)
+    app.include_router(ai_api.router)
     return app
 
 

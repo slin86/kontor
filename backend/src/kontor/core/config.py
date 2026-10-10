@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     # Used to decide which month is "now" (everything before it is locked history).
     timezone: str = "Europe/Berlin"
+    # AI helper. A local server (Ollama or LM Studio, OpenAI-compatible API) reads documents and
+    # suggests categories. An optional cloud key is only ever used for short item names, never for
+    # documents. Everything stays off while the URL / key are empty.
+    ai_local_url: str = ""  # e.g. http://gaming-pc.home.lan:11434
+    ai_local_model: str = ""
+    ai_local_timeout_seconds: int = 180
+    ai_cloud_api_key: str = ""
+    ai_cloud_model: str = "claude-haiku-4-5"
 
 
 @lru_cache

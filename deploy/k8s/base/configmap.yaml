@@ -8,3 +8,7 @@ data:
   # The first household can always be created; further ones only when this is "true".
   KONTOR_ALLOW_NEW_HOUSEHOLDS: "false"
   KONTOR_CORS_ORIGINS: "[]"
+  # AI helper, off while empty. A local OpenAI-compatible server (Ollama, LM Studio) reads statements and
+  # suggests categories; set the host of the machine that runs it, for example:
+  # KONTOR_AI_LOCAL_URL: "http://gaming-pc.home.lan:11434"
+  # KONTOR_AI_LOCAL_MODEL: "qwen2.5:14b"
