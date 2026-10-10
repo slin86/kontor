@@ -36,22 +36,42 @@ class AiStatus:
 
 
 def _local_base() -> str:
-    return get_settings().ai_local_url.rstrip("/")
+    """Server address without a trailing ``/v1``; Ollama and LM Studio both work as host:port."""
+    url = get_settings().ai_local_url.strip().rstrip("/")
+    return url.removesuffix("/v1").rstrip("/")
+
+
+def _model() -> str:
+    """The configured model, or the first one the server lists (LM Studio shows what is loaded)."""
+    configured = get_settings().ai_local_model.strip()
+    if configured or not _local_base():
+        return configured
+    try:
+        r = httpx.get(f"{_local_base()}/v1/models", timeout=httpx.Timeout(3.0))
+        r.raise_for_status()
+        models = [m.get("id") for m in r.json().get("data", []) if isinstance(m, dict)]
+        return str(next((m for m in models if m), ""))
+    except (httpx.HTTPError, ValueError):
+        return ""
 
 
 def status() -> AiStatus:
     s = get_settings()
     reachable = False
+    model = s.ai_local_model.strip() or None
     if _local_base():
         try:
             r = httpx.get(f"{_local_base()}/v1/models", timeout=httpx.Timeout(2.0))
             reachable = r.is_success
-        except httpx.HTTPError:
+            if reachable and model is None:
+                ids = [m.get("id") for m in r.json().get("data", []) if isinstance(m, dict)]
+                model = next((str(i) for i in ids if i), None)
+        except (httpx.HTTPError, ValueError):
             reachable = False
     return AiStatus(
         local_configured=bool(_local_base()),
         local_reachable=reachable,
-        local_model=s.ai_local_model or None,
+        local_model=model,
         cloud_configured=bool(s.ai_cloud_api_key),
     )
 
@@ -70,10 +90,10 @@ def _json_from_text(text: str) -> dict[str, Any]:
     return value
 
 
-def _local(system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+def _local(system: str, user: str, schema: dict[str, Any], model: str) -> dict[str, Any]:
     s = get_settings()
     body = {
-        "model": s.ai_local_model,
+        "model": model,
         "temperature": 0,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {
@@ -114,9 +134,10 @@ def complete_json(
     """Ask for a JSON answer; local server first, cloud only when ``allow_cloud`` and configured."""
     s = get_settings()
     errors: list[str] = []
-    if _local_base() and s.ai_local_model:
+    model = _model() if _local_base() else ""
+    if model:
         try:
-            return AiAnswer(_local(system, user, schema), "local")
+            return AiAnswer(_local(system, user, schema, model), "local")
         except (httpx.HTTPError, ValueError, KeyError) as exc:
             errors.append(f"lokal: {exc}")
     if allow_cloud and s.ai_cloud_api_key:

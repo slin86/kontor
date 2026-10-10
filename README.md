@@ -176,8 +176,10 @@ Everything below also works without AI; the helper only saves typing.
 
 **Where the model runs.** Statements, and anything derived from them, only go to a *local* server that
 speaks the OpenAI API: Ollama (`OLLAMA_HOST=0.0.0.0` so the cluster can reach it) or LM Studio (serve on
-the local network). Set `KONTOR_AI_LOCAL_URL` (e.g. `http://gaming-pc.home.lan:11434`) and
-`KONTOR_AI_LOCAL_MODEL` in `base/configmap.yaml`. If the machine is off, Kontor says so and everything
+the local network, Developer tab). Set `KONTOR_AI_LOCAL_URL` in `base/configmap.yaml`: Ollama listens on
+port 11434 (`http://gaming-pc.home.lan:11434`), LM Studio on 1234 (`http://gaming-pc.home.lan:1234`); a
+trailing `/v1` is accepted. `KONTOR_AI_LOCAL_MODEL` is optional: when empty, Kontor uses the first model the
+server lists, which for LM Studio is the one you have loaded. If the machine is off, Kontor says so and everything
 keeps working by hand; start the machine and retry. Text models handle categories and names; reading PDFs
 needs a model that follows JSON schemas well, so check the preview. An optional `KONTOR_AI_CLOUD_API_KEY`
 (Infisical) lets a cloud model answer the *single item name* suggestion when the local server is off. It
