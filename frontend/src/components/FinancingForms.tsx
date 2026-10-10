@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
+import type { FinancingDraft } from '../aiApi'
 import {
   financingApi,
   type BausparInput,
@@ -342,9 +343,33 @@ function KindFields({ kind, initial }: { kind: FormKind; initial?: Initial }) {
   return <BausparFields initial={initial} prefinanced={kind === 'prefinanced'} />
 }
 
-export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail) => void }) {
+const FIELD_LABEL: Record<string, string> = {
+  principal: 'Darlehensbetrag',
+  monthly_payment: 'Monatliche Rate',
+  contract_sum: 'Bausparsumme',
+  monthly_saving: 'Sparbeitrag',
+  fee_amount: 'Abschlussgebühr',
+  loan_payment: 'Rate in der Darlehensphase',
+  limit: 'Rahmen',
+  balance: 'Genutzter Betrag',
+  annual_rate_percent: 'Sollzins',
+  initial_repayment_percent: 'Anfangstilgung',
+  fee_percent: 'Abschlussgebühr in Prozent',
+  deposit_rate_percent: 'Guthabenzins',
+  prefinance_rate_percent: 'Zins der Vorfinanzierung',
+  loan_rate_percent: 'Darlehenszins',
+}
+
+export function NewFinancingForm({
+  onDone,
+  draft,
+}: {
+  onDone: (created: FinancingDetail) => void
+  /** Values read from a contract; the user checks and corrects them before saving. */
+  draft?: FinancingDraft
+}) {
   const { selected } = useMonth()
-  const [kind, setKind] = useState<FormKind>('loan')
+  const [kind, setKind] = useState<FormKind>(draft?.form_kind ?? 'loan')
   const { people, me, selectedId } = usePerson()
   const [owner, setOwner] = useState<number | undefined>(selectedId ?? me?.id)
   const mutation = useFinancingMutation((v: FinancingInput) => financingApi.create(v, owner), onDone)
@@ -356,7 +381,7 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
     )
   }
 
-  const initial = { start: selected, allocation: addMonths(selected, 120) }
+  const initial = { start: selected, allocation: addMonths(selected, 120), ...draft?.fields }
   return (
     <form onSubmit={submit} className="border-t-4 border-tinte pt-5">
       <div className="mb-4 flex gap-4 text-sm font-medium">
@@ -379,6 +404,17 @@ export function NewFinancingForm({ onDone }: { onDone: (created: FinancingDetail
           </button>
         ))}
       </div>
+      {draft && (
+        <div className="mb-4 max-w-2xl space-y-1 border-l-4 border-elbe pl-3 text-sm">
+          <p>Die Werte stammen aus deinem Vertrag. Prüfe sie, bevor du speicherst.</p>
+          {draft.unverified.length > 0 && (
+            <p className="font-medium text-bake">
+              Nicht im Dokumenttext gefunden, bitte besonders prüfen: {draft.unverified.map((f) => FIELD_LABEL[f] ?? f).join(', ')}.
+            </p>
+          )}
+          {draft.missing_note && <p className="text-tinte-weich">{draft.missing_note}</p>}
+        </div>
+      )}
       {people.length > 1 && (
         <label className="mb-4 block max-w-xs text-sm">
           Gehört zu

@@ -6,15 +6,12 @@ key is used for a single item name typed into the form, nothing else.
 
 import base64
 import binascii
-import io
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from pypdf import PdfReader
-from pypdf.errors import PyPdfError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -22,12 +19,13 @@ from kontor.api.deps import CurrentUser, DbSession
 from kontor.domain import statements as st
 from kontor.models import CashflowItem, Category
 from kontor.services import ai
+from kontor.services import documents as docs
+from kontor.services.documents import DocumentError, decode_text, pdf_pages
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 MONTHS_TO_FREQUENCY = {1: "monthly", 3: "quarterly", 6: "semiannual", 12: "yearly"}
 MAX_UPLOAD_CHARS = 14_000_000  # base64, about 10 MB
-PDF_CHUNK_CHARS = 6000
 CLASSIFY_BATCH = 30
 MAX_SINGLES = 60
 UNAVAILABLE = "Der KI-Server ist nicht erreichbar. Starte den Rechner und versuche es erneut."
@@ -56,7 +54,7 @@ def get_status(user: CurrentUser) -> StatusOut:
 # --------------------------------------------------------------------------------------
 
 
-def _categories(db: DbSession, household_id: int) -> tuple[list[Category], dict[int, str]]:
+def categories(db: DbSession, household_id: int) -> tuple[list[Category], dict[int, str]]:
     cats = list(
         db.scalars(
             select(Category)
@@ -72,7 +70,7 @@ def _categories(db: DbSession, household_id: int) -> tuple[list[Category], dict[
     return cats, label
 
 
-def _category_lines(cats: list[Category], label: dict[int, str], income: bool | None) -> str:
+def category_lines(cats: list[Category], label: dict[int, str], income: bool | None) -> str:
     """Categories that can hold an item; a group with children is not offered itself."""
     parents = {c.parent_id for c in cats if c.parent_id}
     return "\n".join(
@@ -82,7 +80,7 @@ def _category_lines(cats: list[Category], label: dict[int, str], income: bool | 
     )
 
 
-def _allowed_ids(cats: list[Category], income: bool | None) -> set[int]:
+def allowed_ids(cats: list[Category], income: bool | None) -> set[int]:
     parents = {c.parent_id for c in cats if c.parent_id}
     return {
         c.id
@@ -91,7 +89,7 @@ def _allowed_ids(cats: list[Category], income: bool | None) -> set[int]:
     }
 
 
-def _existing_items(db: DbSession, household_id: int) -> list[CashflowItem]:
+def existing_items(db: DbSession, household_id: int) -> list[CashflowItem]:
     return list(
         db.scalars(
             select(CashflowItem)
@@ -102,7 +100,7 @@ def _existing_items(db: DbSession, household_id: int) -> list[CashflowItem]:
     )
 
 
-def _match_item(key: str, items: list[CashflowItem]) -> CashflowItem | None:
+def match_item(key: str, items: list[CashflowItem]) -> CashflowItem | None:
     if len(key) < 3:
         return None
     for item in items:
@@ -147,7 +145,7 @@ SUGGEST_SCHEMA: dict[str, Any] = {
 def suggest(body: SuggestIn, user: CurrentUser, db: DbSession) -> SuggestOut:
     """Category and rhythm for an item name: from the household's own items first, then the AI."""
     name = body.name.strip()
-    items = _existing_items(db, user.household_id)
+    items = existing_items(db, user.household_id)
     same = next((i for i in items if i.name.strip().lower() == name.lower()), None)
     if same is not None and same.versions:
         latest = same.versions[-1]
@@ -159,8 +157,8 @@ def suggest(body: SuggestIn, user: CurrentUser, db: DbSession) -> SuggestOut:
             source="existing",
         )
 
-    cats, label = _categories(db, user.household_id)
-    allowed = _allowed_ids(cats, body.income)
+    cats, label = categories(db, user.household_id)
+    allowed = allowed_ids(cats, body.income)
     if not allowed:
         return SuggestOut(
             category_id=None, recurring=None, frequency=None, reason=None, source="none"
@@ -176,7 +174,7 @@ def suggest(body: SuggestIn, user: CurrentUser, db: DbSession) -> SuggestOut:
         "einmalig oder unklar=0). Wähle category_id ausschließlich aus der Liste, sonst null. "
         "Antworte knapp auf Deutsch; reason ist ein kurzer Satz."
     )
-    prompt = f"Kategorien:\n{_category_lines(cats, label, body.income)}\n\n"
+    prompt = f"Kategorien:\n{category_lines(cats, label, body.income)}\n\n"
     if examples:
         prompt += f"Bisherige Zuordnungen des Nutzers:\n{examples}\n\n"
     prompt += f"Posten: {name}"
@@ -218,7 +216,8 @@ class Candidate(BaseModel):
     occurrences: int
     first: date
     last: date
-    source: Literal["pattern", "ai"]
+    source: Literal["pattern", "ai", "document"]
+    check: str | None = None  # why the user should look at this row twice
     existing_item_id: int | None
     existing_item_name: str | None
 
@@ -284,41 +283,10 @@ CLASSIFY_SCHEMA: dict[str, Any] = {
 }
 
 
-def _decode_text(raw: bytes) -> str:
-    for encoding in ("utf-8-sig", "cp1252"):
-        try:
-            return raw.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("latin-1")
-
-
-def _pdf_pages(raw: bytes) -> list[str]:
-    try:
-        reader = PdfReader(io.BytesIO(raw))
-        if reader.is_encrypted:
-            raise st.StatementError("Das PDF ist passwortgeschützt.")
-        pages = [(p.extract_text() or "").strip() for p in reader.pages]
-    except PyPdfError as exc:
-        raise st.StatementError("Das PDF ist nicht lesbar.") from exc
-    if sum(len(p) for p in pages) < 80:
-        raise st.StatementError(
-            "Das PDF enthält keinen Text (vermutlich ein Scan). Lade stattdessen die CSV- oder "
-            "CAMT-Datei deiner Bank hoch."
-        )
-    return pages
-
-
 def _extract_from_pdf(pages: list[str]) -> list[st.BankLine]:
-    chunks: list[str] = []
-    current = ""
-    for page in pages:
-        if current and len(current) + len(page) > PDF_CHUNK_CHARS:
-            chunks.append(current)
-            current = ""
-        current += page + "\n"
-    if current.strip():
-        chunks.append(current)
+    text = "\n".join(pages)
+    docs.require_kind(text, {"bank_statement"})
+    chunks = docs.chunks(text)
 
     system = (
         "Du liest den Text eines deutschen Kontoauszugs. Gib jede einzelne Buchung zurück: Datum "
@@ -344,16 +312,70 @@ def _extract_from_pdf(pages: list[str]) -> list[st.BankLine]:
     return lines
 
 
+COLUMNS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "header_row": {"type": "integer"},
+        "date": {"type": "integer"},
+        "amount": {"type": ["integer", "null"]},
+        "debit": {"type": ["integer", "null"]},
+        "credit": {"type": ["integer", "null"]},
+        "counterparty": {"type": ["integer", "null"]},
+        "purpose": {"type": ["integer", "null"]},
+    },
+    "required": ["header_row", "date", "amount", "debit", "credit", "counterparty", "purpose"],
+    "additionalProperties": False,
+}
+
+
+def _map_csv(text: str) -> st.CsvColumns:
+    """A CSV with headers nobody has seen: the AI only says which column is which."""
+    rows = st.csv_rows(text)
+    sample = rows[:12]
+    width = max((len(r) for r in sample), default=0)
+    system = (
+        "Du bekommst die ersten Zeilen einer CSV-Datei einer Bank oder eines Kreditkarten-"
+        "Anbieters (Zeilen und Spalten ab 0 nummeriert). Gib an, in welcher Zeile die "
+        "Spaltenüberschriften stehen und in welcher Spalte Buchungsdatum, Betrag (mit Vorzeichen) "
+        "oder getrennt Soll/Haben, Name der Gegenseite und Verwendungszweck stehen. Spalten, die "
+        "es nicht gibt, sind null. Rate nichts."
+    )
+    prompt = "\n".join(
+        f"{i}: " + " | ".join(f"[{j}] {c}" for j, c in enumerate(r)) for i, r in enumerate(sample)
+    )
+    answer = ai.complete_json(system, prompt, COLUMNS_SCHEMA, allow_cloud=False)
+    d = answer.data
+
+    def col(key: str) -> int | None:
+        v = d.get(key)
+        return v if isinstance(v, int) and 0 <= v < width else None
+
+    day, amount = col("date"), col("amount")
+    debit, credit = col("debit"), col("credit")
+    header = d.get("header_row")
+    if day is None or not isinstance(header, int) or not 0 <= header < len(sample):
+        raise st.StatementError("Die Spalten dieser CSV-Datei konnten nicht erkannt werden.")
+    if amount is None and (debit is None or credit is None):
+        raise st.StatementError("Die Spalten dieser CSV-Datei konnten nicht erkannt werden.")
+    cols = st.CsvColumns(header, day, amount, debit, credit, col("counterparty"), col("purpose"))
+    if not st.read_csv(rows, cols):
+        raise st.StatementError("Die Spalten dieser CSV-Datei konnten nicht erkannt werden.")
+    return cols
+
+
 def _read_lines(raw: bytes) -> tuple[Literal["csv", "camt", "mt940", "pdf"], list[st.BankLine]]:
     if raw[:5] == b"%PDF-":
-        return "pdf", _extract_from_pdf(_pdf_pages(raw))
-    text = _decode_text(raw)
+        return "pdf", _extract_from_pdf(pdf_pages(raw))
+    text = decode_text(raw)
     head = text[:2000]
     if "<Document" in head or "camt.053" in head or head.lstrip().startswith("<?xml"):
         return "camt", st.parse_camt(text)
     if ":20:" in head and ":61:" in text:
         return "mt940", st.parse_mt940(text)
-    return "csv", st.parse_csv(text)
+    try:
+        return "csv", st.parse_csv(text)
+    except st.UnknownCsv:
+        return "csv", st.read_csv(st.csv_rows(text), _map_csv(text))
 
 
 def _classify(
@@ -372,8 +394,8 @@ def _classify(
     for start in range(0, len(entries), CLASSIFY_BATCH):
         batch = entries[start : start + CLASSIFY_BATCH]
         by_kind = {
-            True: _category_lines(cats, label, True),
-            False: _category_lines(cats, label, False),
+            True: category_lines(cats, label, True),
+            False: category_lines(cats, label, False),
         }
         prompt = (
             f"Einnahmen-Kategorien:\n{by_kind[True]}\n\nAusgaben-Kategorien:\n{by_kind[False]}\n\n"
@@ -405,7 +427,7 @@ def analyze_statement(body: AnalyzeIn, user: CurrentUser, db: DbSession) -> Anal
         ) from exc
     try:
         fmt, lines = _read_lines(raw)
-    except st.StatementError as exc:
+    except (st.StatementError, DocumentError) as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     except ai.AiUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE) from exc
@@ -415,8 +437,8 @@ def analyze_statement(body: AnalyzeIn, user: CurrentUser, db: DbSession) -> Anal
         )
 
     recurring, rest = st.find_recurring(lines)
-    cats, label = _categories(db, user.household_id)
-    items = _existing_items(db, user.household_id)
+    cats, label = categories(db, user.household_id)
+    items = existing_items(db, user.household_id)
 
     # single payments: one entry per payee, the AI decides whether any of them is a regular one
     singles: dict[str, st.BankLine] = {}
@@ -468,9 +490,9 @@ def analyze_statement(body: AnalyzeIn, user: CurrentUser, db: DbSession) -> Anal
         key: str,
     ) -> None:
         verdict = (judged or {}).get(index, {})
-        item = _match_item(key, items)
+        item = match_item(key, items)
         category_id = item.category_id if item else verdict.get("category_id")
-        if category_id not in _allowed_ids(cats, income):
+        if category_id not in allowed_ids(cats, income):
             category_id = None
         candidates.append(
             Candidate(

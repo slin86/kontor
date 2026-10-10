@@ -66,6 +66,9 @@ class FakeAi:
         self.calls: list[dict[str, Any]] = []
         self.down = False
         self.pdf_lines: list[dict[str, Any]] = []
+        self.doc_kind = "bank_statement"
+        # answers by the name of the schema's first property, for the document endpoints
+        self.answers: dict[str, dict[str, Any]] = {}
 
     def __call__(
         self, system: str, user: str, schema: dict[str, Any], *, allow_cloud: bool = False
@@ -74,6 +77,11 @@ class FakeAi:
         if self.down:
             raise ai.AiUnavailable("aus")
         props = schema["properties"]
+        if "kind" in props and len(props) == 1:
+            return ai.AiAnswer({"kind": self.doc_kind}, "local")
+        first = next(iter(props))
+        if first in self.answers:
+            return ai.AiAnswer(self.answers[first], "local")
         if "lines" in props:
             return ai.AiAnswer({"lines": self.pdf_lines}, "local")
         if "items" in props:
@@ -246,6 +254,15 @@ def test_pdf_without_text_and_without_ai(client: TestClient, fake: FakeAi) -> No
 def test_bad_uploads_are_rejected(client: TestClient, fake: FakeAi) -> None:
     r = client.post("/api/ai/statements/analyze", json={"filename": "a", "content_base64": "###"})
     assert r.status_code == 422
+    fake.answers["header_row"] = {  # the AI finds no usable columns either
+        "header_row": 0,
+        "date": 7,
+        "amount": None,
+        "debit": None,
+        "credit": None,
+        "counterparty": None,
+        "purpose": None,
+    }
     r = client.post(
         "/api/ai/statements/analyze",
         json={"filename": "a.csv", "content_base64": _b64("x;y\n1;2\n")},

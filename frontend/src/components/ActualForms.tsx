@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 
-import { actualsApi, KIND_LABEL, type ImportPreview, type Transaction } from '../actualsApi'
+import { actualsApi, KIND_LABEL, type Transaction } from '../actualsApi'
+import { aiApi, type DepotPreview } from '../aiApi'
 import { depotApi } from '../depotApi'
 import { euro } from '../format'
 import { useMonth } from '../month'
@@ -152,36 +153,40 @@ export function ImportPanel() {
   const target = people.find((p) => p.id === (selectedId ?? me?.id))
   const positions = usePositions().data?.instruments ?? []
   const invalidate = useInvalidate()
-  const [csv, setCsv] = useState<string | null>(null)
-  const [fileName, setFileName] = useState('')
+  const aiStatus = useQuery({ queryKey: ['ai', 'status'], queryFn: aiApi.status, staleTime: 10_000 })
+  const [file, setFile] = useState<File | null>(null)
   const [mapping, setMapping] = useState<Record<string, number>>({})
-  const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [preview, setPreview] = useState<DepotPreview | null>(null)
+  const [off, setOff] = useState<Set<string>>(new Set())
   const [done, setDone] = useState<string | null>(null)
 
   const previewMutation = useMutation({
-    mutationFn: (v: { text: string; map: Record<string, number> }) => actualsApi.preview(v.text, v.map, target?.id ?? 0),
-    onSuccess: setPreview,
+    mutationFn: (v: { file: File; map: Record<string, number> }) => aiApi.analyzeDepot(v.file, v.map, target?.id ?? 0),
+    onSuccess: (p) => {
+      setPreview(p)
+      // rows the checks could not confirm start unticked; the user decides
+      setOff(new Set(p.rows.filter((r) => r.check).map((r) => r.external_id)))
+    },
   })
+  const chosen = (preview?.rows ?? []).filter((r) => !off.has(r.external_id) && !r.duplicate && r.instrument_id !== null)
   const importMutation = useMutation({
-    mutationFn: () => actualsApi.importCsv(csv ?? '', mapping, target?.id ?? 0),
+    mutationFn: () => aiApi.importDepot(chosen, mapping, target?.id ?? 0, preview?.method ?? 'ai'),
     onSuccess: async (r) => {
       setDone(`${r.imported} Transaktionen importiert, ${r.duplicates} schon vorhanden, ${r.unmatched} ohne Position übersprungen.`)
-      setCsv(null)
+      setFile(null)
       setPreview(null)
       setMapping({})
       await invalidate()
     },
   })
 
-  async function onFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0]
+    if (!picked) return
     setDone(null)
-    setFileName(file.name)
-    const text = await file.text()
-    setCsv(text)
+    setFile(picked)
     setMapping({})
-    previewMutation.mutate({ text, map: {} })
+    previewMutation.mutate({ file: picked, map: {} })
   }
 
   function assign(isin: string, instrumentId: number | null) {
@@ -189,10 +194,17 @@ export function ImportPanel() {
     if (instrumentId === null) delete next[isin]
     else next[isin] = instrumentId
     setMapping(next)
-    if (csv) previewMutation.mutate({ text: csv, map: next })
+    if (file) previewMutation.mutate({ file, map: next })
   }
 
-  const skipped = preview ? Object.entries(preview.skipped) : []
+  const toggle = (id: string) =>
+    setOff((all) => {
+      const next = new Set(all)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
   return (
     <div className="space-y-4">
       {target && people.length > 1 && (
@@ -202,21 +214,25 @@ export function ImportPanel() {
         </p>
       )}
       <label className="block text-sm">
-        CSV-Export des Brokers
-        <input type="file" accept=".csv,text/csv,text/plain" onChange={onFile} className={`${input} cursor-pointer`} />
+        Datei vom Broker
+        <input type="file" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" onChange={onFile} className={`${input} cursor-pointer`} />
         <span className="mt-1 block text-xs text-tinte-weich">
-          Gebaut für den Transaktionsexport von Trade Republic. Es werden Käufe, Verkäufe, Sparpläne und Dividenden übernommen. Die Datei
-          bleibt auf deinem Server.
+          CSV-Exporte und PDF-Abrechnungen beliebiger Broker. Das Transaktions-CSV von Trade Republic wird ohne KI gelesen; andere Layouts und PDFs liest die lokale KI,
+          und jede Zahl wird gegen den Dokumenttext geprüft. Die Datei bleibt auf deinem Server und wird nicht gespeichert.
         </span>
+        {aiStatus.data && aiStatus.data.local_configured && !aiStatus.data.local_reachable && (
+          <span className="mt-1 block text-xs text-bake">KI-Server nicht erreichbar. Starte den Rechner für PDFs und unbekannte Layouts.</span>
+        )}
       </label>
+      {previewMutation.isPending && <p className="text-sm text-tinte-weich">Die Datei wird gelesen. Mit lokaler KI kann das einige Minuten dauern.</p>}
       <ErrorLine error={previewMutation.error ?? importMutation.error} />
       {done && <p className="text-sm font-medium text-elbe-dunkel">{done}</p>}
 
-      {preview && (
+      {preview && file && (
         <div className="space-y-4">
           <p className="text-sm">
-            <strong>{fileName}</strong>: {preview.new_count} neue Transaktionen, {preview.duplicate_count} bereits importiert
-            {preview.errors.length > 0 && `, ${preview.errors.length} nicht lesbar`}.
+            <strong>{file.name}</strong>: {preview.new_count} neue Transaktionen, {preview.duplicate_count} bereits importiert
+            {preview.method === 'ai' && ', von der KI gelesen'}.
           </p>
 
           {preview.unmatched.length > 0 && (
@@ -228,7 +244,7 @@ export function ImportPanel() {
                   <li key={u.isin ?? 'none'} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
                     <span>{u.name ?? 'Unbekannt'}</span>
                     <span className="text-tinte-weich">
-                      {u.isin ?? 'ohne ISIN'} · {u.count === 1 ? '1 Zeile' : `${u.count} Zeilen`}
+                      {u.isin ?? 'ohne gültige ISIN'} · {u.count === 1 ? '1 Zeile' : `${u.count} Zeilen`}
                     </span>
                     {u.isin && (
                       <select
@@ -251,23 +267,15 @@ export function ImportPanel() {
             </div>
           )}
 
-          {skipped.length > 0 && (
-            <p className="text-sm text-tinte-weich">
-              Nicht übernommen: {skipped.map(([k, n]) => `${k} (${n})`).join(', ')}.
-            </p>
-          )}
-          {preview.errors.length > 0 && (
-            <ul className="text-sm text-bake">
-              {preview.errors.slice(0, 5).map((e) => (
-                <li key={e}>{e}</li>
-              ))}
-            </ul>
-          )}
+          {preview.skipped > 0 && <p className="text-sm text-tinte-weich">{preview.skipped} Zeilen ohne Wertpapier-Bezug nicht übernommen.</p>}
 
-          <div className="max-h-64 overflow-auto">
-            <table className="w-full min-w-[30rem] text-left text-sm">
+          <div className="max-h-72 overflow-auto">
+            <table className="w-full min-w-[34rem] text-left text-sm">
               <thead className="sticky top-0 bg-karte text-tinte-weich">
                 <tr>
+                  <th className="py-1 pr-2 font-medium">
+                    <span className="sr-only">Übernehmen</span>
+                  </th>
                   <th className="py-1 pr-3 font-medium">Datum</th>
                   <th className="py-1 pr-3 font-medium">Art</th>
                   <th className="py-1 pr-3 font-medium">Wertpapier</th>
@@ -275,31 +283,44 @@ export function ImportPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-tinte/10">
-                {preview.rows.slice(0, 100).map((r) => (
-                  <tr key={r.line} className={r.duplicate || r.instrument_id === null ? 'text-tinte-weich' : ''}>
-                    <td className="py-1 pr-3">{r.day}</td>
-                    <td className="py-1 pr-3">{KIND_LABEL[r.kind]}</td>
-                    <td className="py-1 pr-3">
-                      {r.name ?? r.isin}
-                      {r.duplicate && ' (schon importiert)'}
-                      {!r.duplicate && r.instrument_id === null && ' (keine Position)'}
-                    </td>
-                    <td className="zahl py-1 text-right">{euro(r.amount, true)}</td>
-                  </tr>
-                ))}
+                {preview.rows.slice(0, 200).map((r) => {
+                  const blocked = r.duplicate || r.instrument_id === null
+                  return (
+                    <tr key={r.external_id} className={blocked ? 'text-tinte-weich' : ''}>
+                      <td className="py-1 pr-2">
+                        <input
+                          type="checkbox"
+                          disabled={blocked}
+                          checked={!blocked && !off.has(r.external_id)}
+                          onChange={() => toggle(r.external_id)}
+                          aria-label={`${r.name ?? r.isin} am ${r.day} übernehmen`}
+                        />
+                      </td>
+                      <td className="py-1 pr-3">{r.day}</td>
+                      <td className="py-1 pr-3">{KIND_LABEL[r.kind]}</td>
+                      <td className="py-1 pr-3">
+                        {r.name ?? r.isin}
+                        {r.duplicate && ' (schon importiert)'}
+                        {!r.duplicate && r.instrument_id === null && ' (keine Position)'}
+                        {r.check && <span className="block text-xs font-medium text-bake">{r.check}</span>}
+                      </td>
+                      <td className="zahl py-1 text-right">{euro(r.amount, true)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="flex gap-2">
-            <button type="button" disabled={importMutation.isPending || preview.new_count === 0} onClick={() => importMutation.mutate()} className={primary}>
-              {preview.new_count} Transaktionen importieren
+            <button type="button" disabled={importMutation.isPending || chosen.length === 0} onClick={() => importMutation.mutate()} className={primary}>
+              {chosen.length} Transaktionen importieren
             </button>
             <button
               type="button"
               onClick={() => {
                 setPreview(null)
-                setCsv(null)
+                setFile(null)
               }}
               className={secondary}
             >

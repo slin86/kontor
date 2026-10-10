@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { cashflowApi, type AuditEntry, type Item } from '../../cashflowApi'
 import { ItemEditor, NewItemForm } from '../../components/ItemForms'
-import { StatementImport } from '../../components/StatementImport'
+import { StatementImport, type ImportMode } from '../../components/StatementImport'
 import { euro, FREQUENCY_LABEL } from '../../format'
 import { useMonth } from '../../month'
 import { addMonths, monthLabel } from '../../monthUtils'
@@ -58,7 +58,7 @@ export function ItemsView() {
   const { selectedId, people } = usePerson()
   const locked = isLocked(selected)
   const [adding, setAdding] = useState(false)
-  const [importing, setImporting] = useState(false)
+  const [importing, setImporting] = useState<ImportMode | null>(null)
   const [editing, setEditing] = useState<number | null>(null)
 
   const categories = useQuery({ queryKey: ['cashflow', 'categories'], queryFn: cashflowApi.categories })
@@ -133,9 +133,14 @@ export function ItemsView() {
             Kategorien verwalten
           </Link>
           {!importing && (
-            <button type="button" onClick={() => setImporting(true)} className="border border-tinte/40 px-4 py-2 text-sm font-medium hover:border-tinte">
-              Aus Kontoauszug
-            </button>
+            <>
+              <button type="button" onClick={() => setImporting('contract')} className="border border-tinte/40 px-4 py-2 text-sm font-medium hover:border-tinte">
+                Aus Dokument
+              </button>
+              <button type="button" onClick={() => setImporting('statement')} className="border border-tinte/40 px-4 py-2 text-sm font-medium hover:border-tinte">
+                Aus Kontoauszug
+              </button>
+            </>
           )}
           {!adding && (
             <button type="button" onClick={() => setAdding(true)} className="bg-tinte px-4 py-2 text-sm font-medium text-karte hover:bg-elbe-dunkel">
@@ -145,7 +150,7 @@ export function ItemsView() {
         </div>
         {importing && categories.data && (
           <div className="mb-8">
-            <StatementImport categories={categories.data} onDone={() => setImporting(false)} />
+            <StatementImport key={importing} mode={importing} categories={categories.data} onDone={() => setImporting(null)} />
           </div>
         )}
         {adding && categories.data && (

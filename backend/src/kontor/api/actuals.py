@@ -258,7 +258,7 @@ def _parse(body: ImportIn) -> broker_csv.ParseResult:
         raise HTTPException(422, str(e)) from e
 
 
-def _resolve(
+def resolve_instruments(
     db: Session, user: CurrentUser, mapping: dict[str, int], person: int | None
 ) -> tuple[dict[str, int], set[str]]:
     """ISIN -> instrument id: the person's positions, overridden by the user's choice.
@@ -289,7 +289,7 @@ def _resolve(
 def import_preview(body: ImportIn, user: CurrentUser, db: DbSession) -> ImportPreview:
     """Parse the file and show what would happen, without writing anything."""
     parsed = _parse(body)
-    by_isin, existing = _resolve(db, user, body.mapping, body.person_id)
+    by_isin, existing = resolve_instruments(db, user, body.mapping, body.person_id)
     rows: list[ImportRow] = []
     unmatched: dict[str | None, UnmatchedIsin] = {}
     for r in parsed.rows:
@@ -326,7 +326,7 @@ def import_preview(body: ImportIn, user: CurrentUser, db: DbSession) -> ImportPr
 def import_transactions(body: ImportIn, user: CurrentUser, db: DbSession) -> ImportResult:
     """Store the rows that belong to a position. Rows seen before (same id) are skipped."""
     parsed = _parse(body)
-    by_isin, existing = _resolve(db, user, body.mapping, body.person_id)
+    by_isin, existing = resolve_instruments(db, user, body.mapping, body.person_id)
     imported = duplicates = unmatched = 0
     per_instrument: dict[int, int] = defaultdict(int)
     for r in parsed.rows:

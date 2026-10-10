@@ -32,6 +32,10 @@ class StatementError(ValueError):
     """The file cannot be read as a bank statement."""
 
 
+class UnknownCsv(StatementError):
+    """The CSV has no header this parser knows; an AI column mapping may still read it."""
+
+
 @dataclass(frozen=True)
 class BankLine:
     day: date
@@ -138,45 +142,79 @@ def _pick(headers: dict[str, int], names: tuple[str, ...], *, fuzzy: bool = Fals
     return None
 
 
-def parse_csv(text: str) -> list[BankLine]:
-    text = text.lstrip("﻿")
-    rows = list(
+def csv_rows(text: str) -> list[list[str]]:
+    text = text.lstrip("\ufeff")
+    return list(
         csv.reader(io.StringIO(text), delimiter=";" if text.count(";") > text.count(",") else ",")
     )
-    # banks add address or balance rows before the header; the header is the first row with a
-    # date column and an amount column
-    for header_row, row in enumerate(rows):  # noqa: B007 (used after the loop)
+
+
+@dataclass(frozen=True)
+class CsvColumns:
+    """Where the fields sit in a CSV: column indices and the row that holds the header."""
+
+    header_row: int
+    day: int
+    amount: int | None
+    debit: int | None
+    credit: int | None
+    party: int | None
+    purpose: int | None
+
+
+def read_csv(rows: list[list[str]], cols: CsvColumns) -> list[BankLine]:
+    """Turn the rows below the header into lines, skipping balance and summary rows."""
+
+    def cell(row: list[str], i: int | None) -> str:
+        return row[i].strip() if i is not None and i < len(row) else ""
+
+    lines: list[BankLine] = []
+    for row in rows[cols.header_row + 1 :]:
+        if not any(c.strip() for c in row):
+            continue
+        try:
+            day = parse_day(cell(row, cols.day))
+            if cols.amount is not None:
+                amount = parse_amount(cell(row, cols.amount))
+            else:
+                debit, credit = cell(row, cols.debit), cell(row, cols.credit)
+                amount = parse_amount(credit) if credit else -abs(parse_amount(debit))
+        except StatementError:
+            continue  # summary and balance rows
+        lines.append(BankLine(day, amount, cell(row, cols.party), cell(row, cols.purpose)))
+        if len(lines) > MAX_LINES:
+            raise StatementError("Die Datei hat zu viele Zeilen.")
+    return lines
+
+
+def detect_columns(rows: list[list[str]]) -> CsvColumns | None:
+    """Known German and English headers. The header is the first row with a date and an amount."""
+    for header_row, row in enumerate(rows):
         headers = {_norm(h): i for i, h in enumerate(row) if h.strip()}
         day_i, amount_i = _pick(headers, _DAY), _pick(headers, _AMOUNT)
         debit_i, credit_i = _pick(headers, _DEBIT), _pick(headers, _CREDIT)
         if day_i is not None and (
             amount_i is not None or (debit_i is not None and credit_i is not None)
         ):
-            break
-    else:
-        raise StatementError("In der CSV-Datei fehlen Datum und Betrag.")
-    party_i = _pick(headers, _PARTY, fuzzy=True)
-    purpose_i = _pick(headers, _PURPOSE, fuzzy=True)
+            return CsvColumns(
+                header_row,
+                day_i,
+                amount_i,
+                debit_i,
+                credit_i,
+                _pick(headers, _PARTY, fuzzy=True),
+                _pick(headers, _PURPOSE, fuzzy=True),
+            )
+    return None
 
-    def cell(row: list[str], i: int | None) -> str:
-        return row[i].strip() if i is not None and i < len(row) else ""
 
-    lines: list[BankLine] = []
-    for row in rows[header_row + 1 :]:
-        if not any(c.strip() for c in row):
-            continue
-        try:
-            day = parse_day(cell(row, day_i))
-            if amount_i is not None:
-                amount = parse_amount(cell(row, amount_i))
-            else:
-                debit, credit = cell(row, debit_i), cell(row, credit_i)
-                amount = parse_amount(credit) if credit else -abs(parse_amount(debit))
-        except StatementError:
-            continue  # summary and balance rows
-        lines.append(BankLine(day, amount, cell(row, party_i), cell(row, purpose_i)))
-        if len(lines) > MAX_LINES:
-            raise StatementError("Die Datei hat zu viele Zeilen.")
+def parse_csv(text: str, cols: CsvColumns | None = None) -> list[BankLine]:
+    """Read a CSV; ``cols`` overrides the header detection (used with an AI column mapping)."""
+    rows = csv_rows(text)
+    cols = cols or detect_columns(rows)
+    if cols is None:
+        raise UnknownCsv("In der CSV-Datei fehlen Datum und Betrag.")
+    lines = read_csv(rows, cols)
     if not lines:
         raise StatementError("In der CSV-Datei wurden keine Buchungen gefunden.")
     return lines

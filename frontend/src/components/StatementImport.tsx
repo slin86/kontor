@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { aiApi, type Analysis, type Candidate } from '../aiApi'
+import { aiApi, type Candidate } from '../aiApi'
 import { cashflowApi, type Category, type Frequency } from '../cashflowApi'
 import { FREQUENCY_LABEL } from '../format'
 import { useMonth } from '../month'
@@ -13,14 +13,17 @@ interface Row extends Candidate {
   on: boolean
 }
 
+/** What the same review table is used for: a bank statement or a contract, policy or invoice. */
+export type ImportMode = 'statement' | 'contract'
+
 const FORMAT_LABEL = { csv: 'CSV', camt: 'CAMT', mt940: 'MT940', pdf: 'PDF' } as const
 
-function ServerLine() {
+function ServerLine({ needsAi }: { needsAi: boolean }) {
   const status = useQuery({ queryKey: ['ai', 'status'], queryFn: aiApi.status, staleTime: 10_000, refetchInterval: 15_000 })
   const s = status.data
   if (!s) return null
   if (!s.local_configured) {
-    return <p className="text-sm text-tinte-weich">Kein KI-Server eingerichtet. CSV, CAMT und MT940 lassen sich trotzdem einlesen, Kategorien musst du selbst wählen.</p>
+    return <p className="text-sm text-tinte-weich">{needsAi ? 'Kein KI-Server eingerichtet. Ohne KI lassen sich Dokumente nicht lesen.' : 'Kein KI-Server eingerichtet. CSV, CAMT und MT940 lassen sich trotzdem einlesen, Kategorien musst du selbst wählen.'}</p>
   }
   return (
     <p className="text-sm text-tinte-weich">
@@ -35,7 +38,8 @@ function ServerLine() {
 }
 
 /** Reads a bank statement and proposes the payments that come back as items. */
-export function StatementImport({ categories, onDone }: { categories: Category[]; onDone: () => void }) {
+export function StatementImport({ categories, onDone, mode = 'statement' }: { categories: Category[]; onDone: () => void; mode?: ImportMode }) {
+  const contract = mode === 'contract'
   const qc = useQueryClient()
   const { current, selected } = useMonth()
   const { me, selectedId } = usePerson()
@@ -46,9 +50,27 @@ export function StatementImport({ categories, onDone }: { categories: Category[]
   const parents = new Set(categories.map((c) => c.parent_id).filter((p) => p !== null))
   const label = (c: Category) => (c.parent_id ? `${byId.get(c.parent_id)?.name} › ${c.name}` : c.name)
 
+  const [summary, setSummary] = useState<{ text: string; note: string | null; unrated: number } | null>(null)
   const analyze = useMutation({
-    mutationFn: aiApi.analyze,
-    onSuccess: (a: Analysis) => setRows(a.candidates.map((c) => ({ ...c, on: c.existing_item_id === null }))),
+    mutationFn: async (file: File) => {
+      if (contract) {
+        const a = await aiApi.analyzeContract(file)
+        return { candidates: a.candidates, text: `${a.candidates.length} regelmäßige Zahlungen im Dokument gefunden.`, note: a.ai.note, unrated: 0 }
+      }
+      const a = await aiApi.analyze(file)
+      const n = a.candidates.length
+      return {
+        candidates: a.candidates,
+        text: `${a.lines} Buchungen (${FORMAT_LABEL[a.format]}, ${a.period_from} bis ${a.period_to}) gelesen, ${n === 0 ? 'keine wiederkehrende Zahlung erkannt.' : `${n} wiederkehrende Zahlungen gefunden.`}`,
+        note: a.ai.note,
+        unrated: a.unrated,
+      }
+    },
+    onSuccess: (a) => {
+      // rows the checks could not confirm start unticked, so nothing unchecked slips in
+      setRows(a.candidates.map((c) => ({ ...c, on: c.existing_item_id === null && !c.check })))
+      setSummary({ text: a.text, note: a.note, unrated: a.unrated })
+    },
   })
   const create = useMutation({
     mutationFn: async (selectedRows: Row[]) => {
@@ -75,29 +97,30 @@ export function StatementImport({ categories, onDone }: { categories: Category[]
   const patch = (i: number, p: Partial<Row>) => setRows((all) => all && all.map((r, j) => (j === i ? { ...r, ...p } : r)))
   const chosen = (rows ?? []).filter((r) => r.on)
   const incomplete = chosen.some((r) => r.category_id === null || !r.name.trim())
-  const result = analyze.data
 
   return (
     <section aria-labelledby="kontoauszug" className="space-y-4 border-t-4 border-tinte pt-5">
       <div className="flex flex-wrap items-baseline gap-4">
         <h3 id="kontoauszug" className="text-lg">
-          Aus Kontoauszug anlegen
+          {contract ? 'Aus Dokument anlegen' : 'Aus Kontoauszug anlegen'}
         </h3>
         <button type="button" onClick={onDone} className={`${secondary} ml-auto`}>
           Schließen
         </button>
       </div>
       <p className="max-w-2xl text-sm text-tinte-weich">
-        Lade einen Kontoauszug als CSV, CAMT, MT940 oder PDF hoch, am besten mehrere Monate. Kontor sucht Zahlungen, die regelmäßig wiederkehren, und schlägt sie als
-        Posten vor. Die Datei wird nicht gespeichert, und Auszüge gehen nie an einen Online-Dienst.
+        {contract
+          ? 'Lade einen Vertrag, eine Police oder eine Rechnung als PDF oder Textdatei hoch, etwa Versicherung, Strom, Internet, Kita oder Abo. Die KI liest Betrag und Zahlweise und schlägt Posten vor; jeder Betrag wird gegen den Text des Dokuments geprüft.'
+          : 'Lade einen Kontoauszug als CSV, CAMT, MT940 oder PDF hoch, am besten mehrere Monate. Kontor sucht Zahlungen, die regelmäßig wiederkehren, und schlägt sie als Posten vor. Auch unbekannte CSV-Layouts werden mit der lokalen KI gelesen.'}{' '}
+        Die Datei wird nicht gespeichert und geht nie an einen Online-Dienst.
       </p>
-      <ServerLine />
+      <ServerLine needsAi={contract} />
 
       <label className="block text-sm">
         Datei
         <input
           type="file"
-          accept=".csv,.xml,.sta,.mt940,.txt,.pdf"
+          accept={contract ? '.pdf,.txt' : '.csv,.xml,.sta,.mt940,.txt,.pdf'}
           disabled={analyze.isPending}
           onChange={(e) => {
             const file = e.target.files?.[0]
@@ -107,7 +130,7 @@ export function StatementImport({ categories, onDone }: { categories: Category[]
           className={input}
         />
       </label>
-      {analyze.isPending && <p className="text-sm text-tinte-weich">Der Auszug wird gelesen. Bei einem PDF mit lokaler KI kann das einige Minuten dauern.</p>}
+      {analyze.isPending && <p className="text-sm text-tinte-weich">Die Datei wird gelesen. Mit lokaler KI kann das einige Minuten dauern.</p>}
       {analyze.error && (
         <p role="alert" className="text-sm font-medium text-bake">
           {analyze.error instanceof Error ? analyze.error.message : 'Das hat nicht geklappt.'}
@@ -115,14 +138,11 @@ export function StatementImport({ categories, onDone }: { categories: Category[]
       )}
       {done && <p className="text-sm font-medium text-elbe-dunkel">{done}</p>}
 
-      {result && rows && (
+      {summary && rows && (
         <div className="space-y-3">
-          <p className="text-sm">
-            {result.lines} Buchungen ({FORMAT_LABEL[result.format]}, {result.period_from} bis {result.period_to}) gelesen,{' '}
-            {rows.length === 0 ? 'keine wiederkehrende Zahlung erkannt.' : `${rows.length} wiederkehrende Zahlungen gefunden.`}
-          </p>
-          {result.ai.note && <p className="text-sm text-tinte-weich">{result.ai.note}</p>}
-          {result.unrated > 0 && <p className="text-sm text-tinte-weich">{result.unrated} einzelne Zahlungen wurden nicht bewertet.</p>}
+          <p className="text-sm">{summary.text}</p>
+          {summary.note && <p className="text-sm text-tinte-weich">{summary.note}</p>}
+          {summary.unrated > 0 && <p className="text-sm text-tinte-weich">{summary.unrated} einzelne Zahlungen wurden nicht bewertet.</p>}
 
           <ul className="divide-y divide-tinte/15">
             {rows.map((r, i) => (
@@ -172,11 +192,14 @@ export function StatementImport({ categories, onDone }: { categories: Category[]
                   </select>
                 </label>
                 <p className="text-xs text-tinte-weich sm:col-span-3 sm:col-start-2 lg:col-span-4">
+                  {r.check && <strong className="text-bake">Bitte prüfen: {r.check}. </strong>}
                   {r.existing_item_id !== null
                     ? `Passt zu deinem Posten „${r.existing_item_name}“, daher nicht vorausgewählt. `
-                    : r.source === 'ai'
-                      ? 'Kam nur einmal vor, die KI hält es für wiederkehrend. '
-                      : `${r.occurrences}-mal erkannt, zuletzt am ${r.last}. `}
+                    : r.source === 'document'
+                      ? ''
+                      : r.source === 'ai'
+                        ? 'Kam nur einmal vor, die KI hält es für wiederkehrend. '
+                        : `${r.occurrences}-mal erkannt, zuletzt am ${r.last}. `}
                   {r.reason}
                 </p>
               </li>
