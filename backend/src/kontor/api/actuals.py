@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from kontor.api.deps import CurrentUser, DbSession
-from kontor.core.clock import current_month, format_month, month_range
+from kontor.core.clock import add_months, current_month, format_month, month_range
 from kontor.domain import broker_csv
 from kontor.domain import cashflow as cf
 from kontor.domain import depot as dom
@@ -23,6 +23,8 @@ from kontor.schemas.actuals import (
     ImportResult,
     ImportRow,
     InstrumentComparison,
+    OverviewOut,
+    OverviewPoint,
     TransactionIn,
     TransactionOut,
     UnmatchedIsin,
@@ -461,3 +463,106 @@ def compare(user: CurrentUser, db: DbSession, person: PersonParam = None) -> Com
             )
         )
     return ComparisonOut(first=first, last=today, instruments=rows, points=points)
+
+
+ON_TRACK_PERCENT = Decimal(2)
+
+
+@router.get("/overview", response_model=OverviewOut)
+def overview(
+    user: CurrentUser,
+    db: DbSession,
+    person: PersonParam = None,
+    years: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> OverviewOut:
+    """Real history, forecast from the latest real value, and the plan as reference.
+
+    Positions without any real value count with their plan value, so the totals stay complete and
+    the deviation only comes from what was actually measured.
+    """
+    today = current_month()
+    scope = _scope(db, user, person)
+    instruments = load_instruments(db, user.household_id, scope)
+    positions = [to_position(i) for i in instruments]
+    first = min((p.start for p in positions), default=today)
+    end = add_months(today, years * 12)
+    plan = {m.month: m for m in dom.project_depot(positions, first, end)}
+
+    values: dict[tuple[int, date], Decimal] = {}
+    for v in db.scalars(
+        select(ActualValue)
+        .join(Instrument, Instrument.id == ActualValue.instrument_id)
+        .where(Instrument.household_id == user.household_id)
+    ):
+        if v.month <= today:
+            values[(v.instrument_id, v.month)] = Decimal(v.value)
+    shown = {i.id for i in instruments}
+    valued = {iid for iid, _ in values if iid in shown}
+    months = month_range(first, end)
+
+    def untracked_plan(m: date) -> Decimal:
+        return sum((b for pid, b in plan[m].balances.items() if pid not in valued), Decimal(0))
+
+    actual: dict[date, Decimal] = {}
+    for m in month_range(first, today):
+        if valued and all((i, m) in values for i in valued):
+            actual[m] = sum((values[(i, m)] for i in valued), Decimal(0)) + untracked_plan(m)
+    anchor = max(actual, default=None)
+
+    forecast: dict[date, Decimal] = {}
+    if anchor is not None:
+        by_id = {p.id: p for p in positions}
+        tracked_forecast = {
+            i: dom.forecast_position(by_id[i], anchor, values[(i, anchor)], end) for i in valued
+        }
+        forecast[anchor] = actual[anchor]
+        for m in month_range(anchor, end)[1:]:
+            forecast[m] = sum((f[m] for f in tracked_forecast.values()), Decimal(0)) + (
+                untracked_plan(m)
+            )
+
+    def money(x: Decimal | None) -> float | None:
+        return float(cf.cents(x)) if x is not None else None
+
+    plan_now = plan[anchor].value if anchor else None
+    deviation = actual[anchor] - plan_now if anchor and plan_now is not None else None
+    deviation_percent = deviation / plan_now * 100 if deviation is not None and plan_now else None
+    plan_end = plan[end].value
+    forecast_end = forecast.get(end)
+    end_gap = forecast_end - plan_end if forecast_end is not None else None
+    end_gap_percent = end_gap / plan_end * 100 if end_gap is not None and plan_end else None
+
+    if deviation_percent is None:
+        status_ = "no_data"
+    elif abs(deviation_percent) <= ON_TRACK_PERCENT:
+        status_ = "on_track"
+    else:
+        status_ = "ahead" if deviation_percent > 0 else "behind"
+
+    names = {i.id: i.name for i in instruments}
+    return OverviewOut(
+        status=status_,
+        first=first,
+        today=today,
+        anchor=anchor,
+        end=end,
+        plan_now=money(plan_now),
+        actual_now=money(actual[anchor]) if anchor else None,
+        deviation=money(deviation),
+        deviation_percent=money(deviation_percent),
+        plan_end=float(cf.cents(plan_end)),
+        forecast_end=money(forecast_end),
+        end_gap=money(end_gap),
+        end_gap_percent=money(end_gap_percent),
+        tracked=[names[i] for i in sorted(valued)],
+        untracked=[n for i, n in names.items() if i not in valued],
+        points=[
+            OverviewPoint(
+                month=m,
+                plan=float(cf.cents(plan[m].value)),
+                actual=money(actual.get(m)),
+                forecast=money(forecast.get(m)),
+            )
+            for m in months
+        ],
+    )

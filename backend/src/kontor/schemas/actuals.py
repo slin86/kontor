@@ -114,3 +114,31 @@ class ComparisonOut(BaseModel):
     last: Month
     instruments: list[InstrumentComparison]
     points: list[ComparisonPoint]
+
+
+class OverviewPoint(BaseModel):
+    month: Month
+    plan: float
+    actual: float | None  # real value up to the latest complete month
+    forecast: float | None  # from the latest real value onwards
+
+
+class OverviewOut(BaseModel):
+    """Is the depot on plan? Real history, forecast from the latest real value, and the plan."""
+
+    status: str  # no_data | ahead | on_track | behind
+    first: Month
+    today: Month
+    anchor: Month | None  # latest month for which every tracked position has a value
+    end: Month
+    plan_now: float | None
+    actual_now: float | None
+    deviation: float | None
+    deviation_percent: float | None
+    plan_end: float
+    forecast_end: float | None
+    end_gap: float | None
+    end_gap_percent: float | None
+    tracked: list[str]
+    untracked: list[str]  # no real values: counted with their plan value
+    points: list[OverviewPoint]

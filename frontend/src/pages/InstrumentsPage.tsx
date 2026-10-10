@@ -146,10 +146,10 @@ export function InstrumentsPage() {
 
   return (
     <div className="space-y-10">
-      <h1 className="sr-only">Instrumente</h1>
+      <h1 className="sr-only">Fonds suchen</h1>
       {preselectIsin && (
-        <Link to="/depot" className="inline-block text-sm font-medium text-elbe-dunkel hover:underline">
-          ← Zurück zum Depot
+        <Link to="/depot/plan" className="inline-block text-sm font-medium text-elbe-dunkel hover:underline">
+          ← Zurück zum Plan
         </Link>
       )}
 
@@ -279,7 +279,7 @@ export function InstrumentsPage() {
                   type="button"
                   className="ml-auto font-medium text-elbe-dunkel hover:underline"
                   onClick={() =>
-                    navigate('/depot', {
+                    navigate('/depot/plan', {
                       state: {
                         prefill: { kind: e.kind, name: e.name, isin: e.isin, cost_percent: e.ter_percent },
                       },

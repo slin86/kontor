@@ -77,6 +77,32 @@ export interface Comparison {
   points: ComparisonPoint[]
 }
 
+export interface OverviewPoint {
+  month: string
+  plan: number
+  actual: number | null
+  forecast: number | null
+}
+
+export interface Overview {
+  status: 'no_data' | 'ahead' | 'on_track' | 'behind'
+  first: string
+  today: string
+  anchor: string | null
+  end: string
+  plan_now: number | null
+  actual_now: number | null
+  deviation: number | null
+  deviation_percent: number | null
+  plan_end: number
+  forecast_end: number | null
+  end_gap: number | null
+  end_gap_percent: number | null
+  tracked: string[]
+  untracked: string[]
+  points: OverviewPoint[]
+}
+
 export const KIND_LABEL: Record<Transaction['kind'], string> = {
   buy: 'Kauf',
   sell: 'Verkauf',
@@ -85,6 +111,8 @@ export const KIND_LABEL: Record<Transaction['kind'], string> = {
 
 export const actualsApi = {
   compare: (person: number | null) => api<Comparison>(`/actuals/compare${personQuery(person, true)}`),
+  overview: (person: number | null, years: number) =>
+    api<Overview>(`/actuals/overview?years=${years}${personQuery(person)}`),
   setValue: (json: { instrument_id: number; month: string; value: string; reason: string | null }) =>
     api<ActualValue>('/actuals/values', { method: 'PUT', json }),
   transactions: (person: number | null) =>

@@ -13,6 +13,8 @@ import { ItemsView } from './pages/cashflow/ItemsView'
 import { OverviewView } from './pages/cashflow/OverviewView'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { DepotPage } from './pages/DepotPage'
+import { DepotOverview } from './pages/depot/DepotOverview'
+import { DepotShell } from './pages/depot/DepotShell'
 import { FinancingsPage } from './pages/FinancingsPage'
 import { HouseholdPage } from './pages/HouseholdPage'
 import { InstrumentsPage } from './pages/InstrumentsPage'
@@ -42,11 +44,16 @@ export default function App() {
         </Route>
         <Route path="kategorien" element={<CategoriesPage />} />
         <Route path="finanzierungen" element={<FinancingsPage />} />
-        <Route path="depot" element={<DepotPage />} />
-        <Route path="ist" element={<ActualPage />} />
+        <Route path="depot" element={<DepotShell />}>
+          <Route index element={<DepotOverview />} />
+          <Route path="plan" element={<DepotPage />} />
+          <Route path="ist" element={<ActualPage />} />
+          <Route path="fonds" element={<InstrumentsPage />} />
+        </Route>
+        <Route path="ist" element={<Navigate to="/depot/ist" replace />} />
+        <Route path="instrumente" element={<Navigate to="/depot/fonds" replace />} />
         <Route path="vermoegen" element={<WealthPage />} />
         <Route path="immobilien" element={<PropertiesPage />} />
-        <Route path="instrumente" element={<InstrumentsPage />} />
         <Route path="konto" element={<AccountPage />} />
         <Route path="haushalt" element={<HouseholdPage />} />
       </Route>
