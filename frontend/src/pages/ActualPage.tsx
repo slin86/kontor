@@ -32,7 +32,7 @@ export function ActualPage() {
 
   return (
     <div className="space-y-12">
-      <h1 className="sr-only">Plan und Ist</h1>
+      <h1 className="sr-only">Ist-Daten</h1>
 
       <section aria-labelledby="vergleich">
         <h2 id="vergleich" className="text-xl">
@@ -40,7 +40,7 @@ export function ActualPage() {
         </h2>
         {data && !hasPositions && (
           <p className="mt-3 max-w-xl text-tinte-weich">
-            Lege zuerst auf der Seite Depot eine Position an. Danach kannst du hier tatsächliche Werte und Käufe eintragen und mit dem Plan vergleichen.
+            Lege zuerst unter Plan eine Position an. Danach kannst du hier tatsächliche Werte und Käufe eintragen und mit dem Plan vergleichen.
           </p>
         )}
         {data && hasPositions && (

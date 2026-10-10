@@ -95,6 +95,33 @@ def project_position(position: Position, last: date, shift: Decimal = ZERO) -> l
     return rows
 
 
+def forecast_position(
+    position: Position, anchor: date, anchor_balance: Decimal, last: date
+) -> dict[date, Decimal]:
+    """Balances after ``anchor``, continuing from a real value instead of the planned one.
+
+    ``anchor_balance`` is what the position really was worth at the end of ``anchor``; the months
+    after it use the plan's return, costs, savings rates and one-offs.
+    """
+    months = month_range(anchor, last)[1:]
+    if len(months) > MAX_MONTHS:
+        raise DepotError("Der Zeitraum ist zu lang.")
+    r = monthly_return(position.annual_return, position.annual_cost)
+    balance = anchor_balance
+    out: dict[date, Decimal] = {}
+    for m in months:
+        deposit = rate_at(position, m) + position.one_offs.get(m, ZERO)
+        fee = position.entry_fee * deposit if deposit > 0 else ZERO
+        available = balance * (1 + r)
+        if deposit < 0 and -deposit > available:
+            raise DepotError(
+                f"{position.name}: Die Entnahme im Monat {m:%Y-%m} übersteigt das Guthaben."
+            )
+        balance = available + deposit - fee
+        out[m] = balance
+    return out
+
+
 @dataclass(frozen=True)
 class DepotMonth:
     month: date
@@ -159,6 +186,7 @@ __all__ = [
     "PositionMonth",
     "base_rate",
     "deflate",
+    "forecast_position",
     "monthly_return",
     "project_depot",
     "project_position",

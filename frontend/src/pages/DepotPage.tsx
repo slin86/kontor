@@ -196,7 +196,7 @@ function Detail({ instrument }: { instrument: Instrument }) {
               Kosten übernehmen
             </button>
           )}{' '}
-          <Link to={`/instrumente?compare=${entry.isin}&index=${encodeURIComponent(entry.index_name ?? '')}`} className="font-medium text-elbe-dunkel hover:underline">
+          <Link to={`/depot/fonds?compare=${entry.isin}&index=${encodeURIComponent(entry.index_name ?? '')}`} className="font-medium text-elbe-dunkel hover:underline">
             Mit ähnlichen Fonds vergleichen
           </Link>
         </p>
@@ -306,8 +306,8 @@ export function DepotPage() {
         {adding && (
           <div className="mb-8">
             {prefill && (
-              <Link to="/instrumente" className="mb-3 inline-block text-sm font-medium text-elbe-dunkel hover:underline">
-                ← Zurück zu den Instrumenten
+              <Link to="/depot/fonds" className="mb-3 inline-block text-sm font-medium text-elbe-dunkel hover:underline">
+                ← Zurück zur Fondssuche
               </Link>
             )}
             <NewInstrumentForm

@@ -42,7 +42,7 @@ export function CatalogPicker({ onPick }: { onPick: (entry: CatalogEntry) => voi
       </label>
       {term.length >= 2 && search.data && hits.length === 0 && (
         <p className="mt-2 text-sm text-tinte-weich">
-          Nichts gefunden. Du kannst die Position unten von Hand eintragen oder das Instrument unter „Instrumente" im Katalog anlegen.
+          Nichts gefunden. Du kannst die Position unten von Hand eintragen oder das Instrument unter „Fonds suchen" im Katalog anlegen.
         </p>
       )}
       {hits.length > 0 && (

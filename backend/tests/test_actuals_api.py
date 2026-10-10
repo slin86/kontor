@@ -197,3 +197,50 @@ def test_empty_household_compares_nothing(client: TestClient) -> None:
     _login(client)
     body = client.get("/api/actuals/compare").json()
     assert body["instruments"] == [] and len(body["points"]) == 1
+
+
+def test_overview_without_values_has_no_verdict(client: TestClient) -> None:
+    _login(client)
+    _position(client)
+    body = client.get("/api/actuals/overview?years=5").json()
+    assert body["status"] == "no_data" and body["anchor"] is None
+    assert body["forecast_end"] is None and body["plan_end"] > 0
+    assert all(p["actual"] is None and p["forecast"] is None for p in body["points"])
+
+
+def test_overview_forecast_starts_at_the_latest_real_value(client: TestClient) -> None:
+    _login(client)
+    p = _position(client)  # 250 per month from Aug 2026
+    other = _position(client, name="Ohne Ist-Werte", isin=None, monthly_rate="100")
+    for month, value in (("2026-08", "250"), ("2026-09", "400"), ("2026-10", "500")):
+        client.put(
+            "/api/actuals/values", json={"instrument_id": p["id"], "month": month, "value": value}
+        )
+    body = client.get("/api/actuals/overview?years=10").json()
+    assert body["anchor"] == "2026-10" and body["tracked"] == [p["name"]]
+    assert body["untracked"] == [other["name"]]
+    assert body["status"] == "behind" and body["deviation"] < 0
+    pts = {x["month"]: x for x in body["points"]}
+    assert pts["2026-10"]["actual"] == pts["2026-10"]["forecast"]  # the lines meet
+    assert pts["2026-11"]["actual"] is None and pts["2026-11"]["forecast"] > 0
+    assert pts["2026-09"]["forecast"] is None
+    # being behind today means ending behind the plan, too
+    assert body["end"] == "2036-10" and body["end_gap"] < 0
+    assert body["forecast_end"] == pytest.approx(body["plan_end"] + body["end_gap"], abs=0.02)
+
+
+def test_overview_on_plan_when_the_values_match(client: TestClient) -> None:
+    _login(client)
+    p = _position(client, start_value="1000", monthly_rate="0")
+    planned = {x["month"]: x for x in client.get("/api/actuals/overview").json()["points"]}
+    client.put(
+        "/api/actuals/values",
+        json={
+            "instrument_id": p["id"],
+            "month": "2026-10",
+            "value": str(planned["2026-10"]["plan"]),
+        },
+    )
+    body = client.get("/api/actuals/overview").json()
+    assert body["status"] == "on_track" and body["deviation"] == 0
+    assert body["forecast_end"] == pytest.approx(body["plan_end"], abs=0.02)
