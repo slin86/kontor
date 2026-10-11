@@ -307,3 +307,45 @@ def test_item_can_start_earlier_with_reason_for_closed_months(client: TestClient
     )
     audit = client.get("/api/audit").json()
     assert any(a["reason"] == "Vorjahr nachgetragen" for a in audit)
+
+
+def test_delete_item_removes_it_with_all_months_and_keeps_an_audit_entry(
+    client: TestClient,
+) -> None:
+    _login_new_household(client)
+    twice = _create_item(client, "Netflix", "Abos", "12.99", valid_from="2026-03")
+    _create_item(client, "Netflix", "Abos", "12.99", valid_from="2026-03")  # entered twice
+    assert client.delete(f"/api/cashflow/items/{twice['id']}").status_code == 204
+    items = client.get("/api/cashflow/items?month=2026-05").json()
+    assert [i["name"] for i in items] == ["Netflix"]
+    assert client.get("/api/cashflow/summary?month=2026-05").json()["expenses"] == 12.99
+    entry = next(a for a in client.get("/api/audit").json() if a["action"] == "delete")
+    assert entry["entity"] == "cashflow_item" and entry["before"]["name"] == "Netflix"
+    assert client.delete(f"/api/cashflow/items/{twice['id']}").status_code == 404
+
+
+def test_delete_item_of_another_household_is_refused(client: TestClient) -> None:
+    _login_new_household(client, "a@example.com")
+    item = _create_item(client, "Miete", "Wohnen", "900")
+    _login_new_household(client, "b@example.com")
+    assert client.delete(f"/api/cashflow/items/{item['id']}").status_code == 404
+
+
+def test_delete_all_items_needs_confirmation(client: TestClient) -> None:
+    _login_new_household(client, "a@example.com")
+    _create_item(client, "Miete", "Wohnen", "900")
+    _create_item(client, "Gehalt", "Gehalt", "3000")
+    assert client.delete("/api/cashflow/items").status_code == 422
+    assert client.get("/api/cashflow/items?month=2026-05").json() != []
+    assert client.delete("/api/cashflow/items?confirm=all").status_code == 204
+    assert client.get("/api/cashflow/items?month=2026-05").json() == []
+    log = client.get("/api/audit").json()
+    assert any(a["action"] == "delete_all" and a["subject"] == "Alle Posten (2)" for a in log)
+    # another household keeps its items
+    _login_new_household(client, "b@example.com")
+    _create_item(client, "Strom", "Nebenkosten", "60")
+    _login_new_household(client, "c@example.com")
+    assert client.delete("/api/cashflow/items?confirm=all").status_code == 204
+    client.post("/api/auth/login", json={"email": "b@example.com", "password": PASSWORD})
+    client.headers["X-CSRF-Token"] = client.cookies.get("kontor_csrf") or ""
+    assert [i["name"] for i in client.get("/api/cashflow/items?month=2026-05").json()] == ["Strom"]
