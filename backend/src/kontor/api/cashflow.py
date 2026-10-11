@@ -570,6 +570,53 @@ def rename_item(item_id: int, body: ItemRename, user: CurrentUser, db: DbSession
     return _item_out(item, current_month(), _scope(db, user, None))
 
 
+@router.delete("/cashflow/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(item_id: int, user: CurrentUser, db: DbSession) -> None:
+    """Remove an item with all its versions, for example one that was entered twice.
+
+    Unlike ``end`` this also removes the months already booked. The audit log keeps what was there.
+    """
+    item = _item_or_404(db, user, item_id)
+    _audit(
+        db,
+        user,
+        "delete",
+        "cashflow_item",
+        item.id,
+        before={
+            "name": item.name,
+            "category_id": item.category_id,
+            "person_id": item.person_id,
+            "versions": [_version_snapshot(v) for v in item.versions],
+        },
+    )
+    db.delete(item)
+
+
+@router.delete("/cashflow/items", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_items(
+    user: CurrentUser,
+    db: DbSession,
+    confirm: Annotated[str, Query()] = "",
+) -> None:
+    """Developer tool: remove every item of the household. Needs ``?confirm=all``."""
+    if confirm != "all":
+        raise HTTPException(422, "Zum Löschen aller Posten fehlt die Bestätigung.")
+    items = list(
+        db.scalars(select(CashflowItem).where(CashflowItem.household_id == user.household_id))
+    )
+    _audit(
+        db,
+        user,
+        "delete_all",
+        "cashflow_item",
+        0,
+        before={"count": len(items), "names": sorted(i.name for i in items)[:200]},
+    )
+    for item in items:
+        db.delete(item)
+
+
 @router.post("/cashflow/items/{item_id}/change", response_model=ItemOut)
 def change_item(item_id: int, body: ItemChange, user: CurrentUser, db: DbSession) -> ItemOut:
     """New amount from ``effective_from`` on. Only the current month or later is allowed."""
@@ -806,7 +853,9 @@ def audit_log(
 
     def subject(a: AuditLog) -> str | None:
         if a.entity == "cashflow_item":
-            return item_names.get(a.entity_id)
+            if a.action == "delete_all":
+                return f"Alle Posten ({(a.before or {}).get('count', 0)})"
+            return item_names.get(a.entity_id) or (a.before or {}).get("name")
         if a.entity == "cashflow_version":
             return item_names.get(version_items.get(a.entity_id, -1))
         if a.entity == "category":

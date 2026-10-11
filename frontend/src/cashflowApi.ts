@@ -136,6 +136,8 @@ export const cashflowApi = {
     api<Item>(`/cashflow/items/${id}/start`, { method: 'POST', json }),
   changeItem: (id: number, json: { effective_from: string; amount: string; frequency: Frequency }) =>
     api<Item>(`/cashflow/items/${id}/change`, { method: 'POST', json }),
+  deleteItem: (id: number) => api<void>(`/cashflow/items/${id}`, { method: 'DELETE' }),
+  deleteAllItems: () => api<void>('/cashflow/items?confirm=all', { method: 'DELETE' }),
   endItem: (id: number, json: { end_from: string }) => api<Item>(`/cashflow/items/${id}/end`, { method: 'POST', json }),
   correctVersion: (id: number, json: { reason: string; amount?: string; frequency?: Frequency }) =>
     api<Item>(`/cashflow/versions/${id}/correct`, { method: 'POST', json }),

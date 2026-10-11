@@ -7,6 +7,7 @@ import { FREQUENCY_LABEL } from '../format'
 import { useMonth } from '../month'
 import { addMonths } from '../monthUtils'
 import { usePerson } from '../person'
+import { ConfirmDelete } from './ConfirmDelete'
 import { input, primary, secondary } from './ui'
 
 
@@ -230,6 +231,7 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
     onDone,
   )
   const [spread, setSpread] = useState(item.spread)
+  const remove = useCashflowMutation(() => cashflowApi.deleteItem(item.id), onDone)
   const setSpreadMutation = useCashflowMutation((v: boolean) => cashflowApi.setSpread(item.id, v), onDone)
   const start = useCashflowMutation((v: { start_from: string; reason?: string }) => cashflowApi.startEarlier(item.id, v), onDone)
   const end = useCashflowMutation((v: { end_from: string }) => cashflowApi.endItem(item.id, v), onDone)
@@ -386,6 +388,15 @@ export function ItemEditor({ item, onDone }: { item: Item; onDone: () => void })
       </div>
       <div className="mt-3">
         <ErrorLine error={error} />
+      </div>
+      <div className="mt-4 border-t border-tinte/15 pt-3">
+        <ConfirmDelete
+          label="Posten komplett löschen"
+          question={`„${item.name}“ mit allen Beträgen und allen Monaten, auch den abgeschlossenen, endgültig löschen? Das lässt sich nicht rückgängig machen. Wenn der Posten nur ab einem Monat wegfällt, nutze „Beenden“.`}
+          pending={remove.isPending}
+          error={remove.error}
+          onConfirm={() => remove.mutate()}
+        />
       </div>
     </form>
   )

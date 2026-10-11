@@ -31,6 +31,7 @@ const ACTION_LABEL: Record<string, string> = {
   transaction_remove: 'Transaktion entfernt',
   import: 'Import',
   delete: 'gelöscht',
+  delete_all: 'alle gelöscht',
 }
 
 function AuditList({ entries }: { entries: AuditEntry[] }) {

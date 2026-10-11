@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { ErrorLine } from '../components/ErrorLine'
 import { input, primary } from '../components/ui'
 import { api } from '../api'
+import { cashflowApi } from '../cashflowApi'
 import { householdApi } from '../peopleApi'
 import { useTheme } from '../theme'
 import { WEB_VERSION } from '../version'
@@ -106,12 +107,62 @@ function Versions() {
   )
 }
 
+const WIPE_WORD = 'LÖSCHEN'
+
+/** Tools for testing and cleaning up; nothing here is needed in daily use. */
+function DevTools() {
+  const qc = useQueryClient()
+  const [text, setText] = useState('')
+  const [done, setDone] = useState<string | null>(null)
+  const wipe = useMutation({
+    mutationFn: cashflowApi.deleteAllItems,
+    onSuccess: async () => {
+      setText('')
+      setDone('Alle Posten wurden gelöscht.')
+      await qc.invalidateQueries({ queryKey: ['cashflow'] })
+    },
+  })
+  return (
+    <section aria-labelledby="dev">
+      <h2 id="dev" className="text-xl">
+        Entwicklerwerkzeuge
+      </h2>
+      <div className="mt-3 max-w-xl space-y-3 border-l-4 border-bake pl-4">
+        <h3 className="text-base font-medium">Alle Posten löschen</h3>
+        <p className="text-sm text-tinte-weich">
+          Entfernt alle Posten des gesamten Haushalts mit allen Beträgen, auch in abgeschlossenen Monaten. Kategorien, Finanzierungen, Depot und Immobilien bleiben. Das lässt sich
+          nicht rückgängig machen. Der Vorgang steht im Änderungsprotokoll.
+        </p>
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault()
+            setDone(null)
+            if (text === WIPE_WORD) wipe.mutate()
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <label className="block text-sm">
+            Zur Bestätigung „{WIPE_WORD}“ eintippen
+            <input value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" className={input} />
+          </label>
+          <button type="submit" disabled={text !== WIPE_WORD || wipe.isPending} className="bg-bake px-4 py-2 font-medium text-karte hover:opacity-90 disabled:opacity-40">
+            Alle Posten löschen
+          </button>
+        </form>
+        <ErrorLine error={wipe.error} />
+        {done && <p className="text-sm font-medium text-elbe-dunkel">{done}</p>}
+      </div>
+    </section>
+  )
+}
+
 export function AccountPage() {
   return (
     <div className="space-y-12">
       <h1 className="sr-only">Mein Konto</h1>
       <AccountSection />
       <Appearance />
+      <DevTools />
       <Versions />
     </div>
   )
